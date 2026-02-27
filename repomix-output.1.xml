@@ -1,0 +1,5034 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: .claude/
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+app.json
+app/_layout.tsx
+app/index.tsx
+assets/images/android-icon-background.png
+assets/images/android-icon-foreground.png
+assets/images/android-icon-monochrome.png
+assets/images/favicon.png
+assets/images/icon.png
+assets/images/partial-react-logo.png
+assets/images/react-logo.png
+assets/images/react-logo@2x.png
+assets/images/react-logo@3x.png
+assets/images/splash-icon.png
+assets/sounds/.gitkeep
+assets/sounds/bell.wav
+assets/sounds/chime.wav
+assets/sounds/ping.wav
+assets/sounds/zen.wav
+components/IntervalSelector.tsx
+components/MonogramLogo.tsx
+components/PaywallModal.tsx
+components/SegmentedTabs.tsx
+components/SoundPicker.tsx
+components/TimePickerModal.tsx
+constants/habits.ts
+constants/revenueCat.ts
+context/SubscriptionContext.tsx
+eas.json
+eslint.config.js
+hooks/useHabitForm.ts
+hooks/useHabits.ts
+package.json
+README.md
+repomix-output.1.xml
+tsconfig.json
+types/habit.ts
+utils/habits.ts
+utils/notifications.ts
+utils/time.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="assets/sounds/.gitkeep">
+
+</file>
+
+<file path="components/IntervalSelector.tsx">
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { INTERVAL_OPTIONS } from '@/constants/habits';
+
+interface IntervalSelectorProps {
+  value: number;
+  onChange: (hours: number) => void;
+}
+
+export function IntervalSelector({ value, onChange }: IntervalSelectorProps) {
+  return (
+    <View style={styles.intervalRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.intervalBar}>
+        {INTERVAL_OPTIONS.map((hr) => {
+          const selected = value === hr;
+          return (
+            <TouchableOpacity
+              key={hr}
+              onPress={() => onChange(hr)}
+              activeOpacity={0.9}
+              style={[styles.intervalPill, selected ? styles.intervalPillSelected : styles.intervalPillUnselected]}
+            >
+              <Text style={[styles.intervalLabel, selected ? styles.intervalLabelSelected : styles.intervalLabelUnselected]}>
+                {hr}h
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  intervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  intervalBar: {
+    paddingVertical: 2,
+  },
+  intervalPill: {
+    minWidth: 56,
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  intervalPillSelected: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  intervalPillUnselected: {
+    backgroundColor: 'transparent',
+    borderColor: '#d1d5db',
+  },
+  intervalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  intervalLabelSelected: {
+    color: '#ffffff',
+  },
+  intervalLabelUnselected: {
+    color: '#111827',
+  },
+});
+</file>
+
+<file path="components/MonogramLogo.tsx">
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+export function MonogramLogo() {
+  return (
+    <View style={styles.monogram}>
+      <Text style={styles.monogramLetter}>M</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  monogram: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#16a34a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monogramLetter: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: '900',
+    lineHeight: 28,
+  },
+});
+</file>
+
+<file path="components/PaywallModal.tsx">
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
+import { useSubscription } from '@/context/SubscriptionContext';
+
+interface PaywallModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+  onPurchaseSuccess: () => void;
+}
+
+export function PaywallModal({ visible, onDismiss, onPurchaseSuccess }: PaywallModalProps) {
+  const { currentOffering, purchasePremium, restorePurchases } = useSubscription();
+  const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  const priceLabel = currentOffering?.availablePackages[0]?.product.priceString ?? '$1.99/year';
+
+  const handlePurchase = async () => {
+    setPurchasing(true);
+    const success = await purchasePremium();
+    setPurchasing(false);
+    if (success) onPurchaseSuccess();
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    const success = await restorePurchases();
+    setRestoring(false);
+    if (success) onPurchaseSuccess();
+  };
+
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.backdrop}>
+        <View style={styles.container}>
+          <Text style={styles.starIcon}>{'\u2B50'}</Text>
+          <Text style={styles.title}>Unlock Moneo Pro</Text>
+          <Text style={styles.subtitle}>Take your habits to the next level</Text>
+
+          <View style={styles.featureList}>
+            <Text style={styles.featureItem}>{'\u2713'}  Unlimited habits</Text>
+            <Text style={styles.featureItem}>{'\u2713'}  Custom notification sounds</Text>
+            <Text style={styles.featureItem}>{'\u2713'}  Support an indie developer</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.purchaseButton}
+            onPress={handlePurchase}
+            disabled={purchasing || restoring}
+            activeOpacity={0.85}
+          >
+            {purchasing ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.purchaseButtonText}>{priceLabel}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestore}
+            disabled={purchasing || restoring}
+            activeOpacity={0.7}
+          >
+            {restoring ? (
+              <ActivityIndicator color="#6b7280" size="small" />
+            ) : (
+              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dismissButton}
+            onPress={onDismiss}
+            disabled={purchasing || restoring}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.dismissButtonText}>Not Now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  container: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 28,
+    width: '85%',
+    alignItems: 'center',
+  },
+  starIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 20,
+  },
+  featureList: {
+    alignSelf: 'stretch',
+    marginBottom: 24,
+  },
+  featureItem: {
+    fontSize: 15,
+    color: '#374151',
+    paddingVertical: 6,
+    paddingLeft: 4,
+  },
+  purchaseButton: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  purchaseButtonText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  restoreButton: {
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  restoreButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dismissButton: {
+    paddingVertical: 8,
+  },
+  dismissButtonText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
+</file>
+
+<file path="components/SegmentedTabs.tsx">
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { CATEGORIES } from '@/constants/habits';
+import type { Category } from '@/types/habit';
+
+interface SegmentedTabsProps<T extends string = Category> {
+  value: T;
+  onChange: (val: T) => void;
+  options?: readonly T[];
+  compact?: boolean;
+}
+
+export function SegmentedTabs<T extends string = Category>({
+  value,
+  onChange,
+  options,
+  compact = false,
+}: SegmentedTabsProps<T>) {
+  const items = (options ?? CATEGORIES) as readonly T[];
+  return (
+    <View style={[styles.tabsContainer, compact && styles.tabsContainerCompact]}>
+      {items.map((item) => {
+        const selected = value === item;
+        return (
+          <TouchableOpacity
+            key={item}
+            onPress={() => onChange(item)}
+            activeOpacity={0.9}
+            style={[
+              styles.tabPill,
+              compact && styles.tabPillCompact,
+              selected ? styles.tabPillSelected : styles.tabPillUnselected,
+            ]}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                compact && styles.tabLabelCompact,
+                selected ? styles.tabLabelSelected : styles.tabLabelUnselected,
+              ]}
+            >
+              {item}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#e5e7eb',
+    padding: 3,
+    borderRadius: 999,
+    marginBottom: 8,
+    alignSelf: 'stretch',
+  },
+  tabsContainerCompact: {
+    padding: 2,
+    marginBottom: 0,
+  },
+  tabPill: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  tabPillCompact: {
+    paddingVertical: 5,
+  },
+  tabPillSelected: {
+    backgroundColor: '#16a34a',
+  },
+  tabPillUnselected: {
+    backgroundColor: 'transparent',
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tabLabelCompact: {
+    fontSize: 12,
+  },
+  tabLabelSelected: {
+    color: '#ffffff',
+  },
+  tabLabelUnselected: {
+    color: '#374151',
+  },
+});
+</file>
+
+<file path="components/SoundPicker.tsx">
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { SOUND_OPTIONS } from '@/constants/habits';
+import type { SoundChoice } from '@/types/habit';
+
+interface SoundPickerProps {
+  value: SoundChoice;
+  onChange: (choice: SoundChoice) => void;
+  isPro?: boolean;
+}
+
+export function SoundPicker({ value, onChange, isPro = true }: SoundPickerProps) {
+  return (
+    <View style={styles.intervalRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.intervalBar}>
+        {SOUND_OPTIONS.map((opt) => {
+          const selected = value === opt.key;
+          const locked = !isPro && opt.key !== 'default';
+          return (
+            <TouchableOpacity
+              key={opt.key}
+              onPress={() => { if (!locked) onChange(opt.key); }}
+              activeOpacity={locked ? 1 : 0.9}
+              style={[
+                styles.soundPill,
+                selected ? styles.intervalPillSelected : styles.intervalPillUnselected,
+                locked && styles.soundPillLocked,
+              ]}
+            >
+              <Text style={[styles.soundPillIcon, locked && styles.lockedText]}>
+                {locked ? '\u{1F512}' : opt.icon}
+              </Text>
+              <Text
+                style={[
+                  styles.soundPillLabel,
+                  selected ? styles.intervalLabelSelected : styles.intervalLabelUnselected,
+                  locked && styles.lockedText,
+                ]}
+              >
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  intervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  intervalBar: {
+    paddingVertical: 2,
+  },
+  soundPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 56,
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 6,
+    gap: 4,
+  },
+  soundPillLocked: {
+    opacity: 0.45,
+  },
+  intervalPillSelected: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  intervalPillUnselected: {
+    backgroundColor: 'transparent',
+    borderColor: '#d1d5db',
+  },
+  soundPillIcon: {
+    fontSize: 14,
+  },
+  soundPillLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  intervalLabelSelected: {
+    color: '#ffffff',
+  },
+  intervalLabelUnselected: {
+    color: '#111827',
+  },
+  lockedText: {
+    color: '#9ca3af',
+  },
+});
+</file>
+
+<file path="components/TimePickerModal.tsx">
+import React from 'react';
+import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+interface TimePickerModalProps {
+  visible: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  tempTime: Date | null;
+  setTempTime: (date: Date) => void;
+}
+
+export function TimePickerModal({ visible, onCancel, onConfirm, tempTime, setTempTime }: TimePickerModalProps) {
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onCancel}>
+      <View style={styles.timeModalBackdrop}>
+        <View style={styles.timeModalContainer}>
+          <DateTimePicker
+            value={tempTime || new Date()}
+            mode="time"
+            is24Hour={false}
+            display="spinner"
+            themeVariant="light"
+            onChange={(e, date) => {
+              if (date) setTempTime(date);
+            }}
+          />
+          <View style={styles.timeModalButtons}>
+            <TouchableOpacity style={styles.modalButton} onPress={onCancel}>
+              <Text style={styles.modalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.modalButton, styles.modalButtonPrimary]} onPress={onConfirm}>
+              <Text style={[styles.modalButtonText, styles.modalButtonPrimaryText]}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  timeModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    width: '80%',
+    alignItems: 'center',
+  },
+  timeModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 12,
+  },
+  modalButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  modalButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  modalButtonPrimaryText: {
+    color: '#ffffff',
+  },
+});
+</file>
+
+<file path="constants/habits.ts">
+import type { Category, FilterCategory, SoundOption } from '@/types/habit';
+
+export const INTERVAL_OPTIONS = [1, 2, 4, 8, 12, 24];
+export const DEFAULT_INTERVAL_HOURS = 2;
+export const CATEGORIES: readonly Category[] = ['Wellness', 'Professional', 'Student'] as const;
+export const FILTER_OPTIONS: readonly FilterCategory[] = ['All', ...CATEGORIES] as const;
+
+export const SOUND_OPTIONS: SoundOption[] = [
+  { key: 'default', label: 'Default', icon: '\u{1F514}' },
+  { key: 'chime', label: 'Chime', icon: '\u{1F3B5}', file: 'chime.wav' },
+  { key: 'bell', label: 'Bell', icon: '\u{1F515}', file: 'bell.wav' },
+  { key: 'ping', label: 'Ping', icon: '\u{1F4CC}', file: 'ping.wav' },
+  { key: 'zen', label: 'Zen', icon: '\u{1F9D8}', file: 'zen.wav' },
+];
+
+export const CATEGORY_COLORS: Record<Category, string> = {
+  Wellness: '#16a34a',
+  Professional: '#2563eb',
+  Student: '#7c3aed',
+};
+
+export const CATEGORY_BG_COLORS: Record<Category, string> = {
+  Wellness: '#f0fdf4',
+  Professional: '#eff6ff',
+  Student: '#f5f3ff',
+};
+
+export const TEMPLATES: Record<Category, { emoji: string; name: string; intervalHours: number }[]> = {
+  Wellness: [{ emoji: '\u{1F4A7}', name: 'Drink Water', intervalHours: 2 }],
+  Professional: [{ emoji: '\u{1F4E7}', name: 'Inbox Zero Check', intervalHours: 4 }],
+  Student: [{ emoji: '\u{1F4DA}', name: 'Homework Block', intervalHours: 4 }],
+};
+
+export const FREE_HABIT_LIMIT = 3;
+</file>
+
+<file path="constants/revenueCat.ts">
+export const RC_API_KEY = process.env.EXPO_PUBLIC_RC_API_KEY ?? '';
+
+export const ENTITLEMENT_ID = 'premium';
+export const PRODUCT_ID = 'premium_annual';
+</file>
+
+<file path="context/SubscriptionContext.tsx">
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Platform, Alert } from 'react-native';
+import { RC_API_KEY, ENTITLEMENT_ID } from '@/constants/revenueCat';
+
+type PurchasesModule = typeof import('react-native-purchases');
+type Offerings = Awaited<ReturnType<PurchasesModule['default']['getOfferings']>>;
+type PurchasesOffering = Offerings['current'];
+
+interface SubscriptionContextType {
+  isPro: boolean;
+  isLoading: boolean;
+  currentOffering: PurchasesOffering | null;
+  purchasePremium: () => Promise<boolean>;
+  restorePurchases: () => Promise<boolean>;
+}
+
+const SubscriptionContext = createContext<SubscriptionContextType>({
+  isPro: false,
+  isLoading: true,
+  currentOffering: null,
+  purchasePremium: async () => false,
+  restorePurchases: async () => false,
+});
+
+export function useSubscription() {
+  return useContext(SubscriptionContext);
+}
+
+export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
+  const [isPro, setIsPro] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentOffering, setCurrentOffering] = useState<PurchasesOffering | null>(null);
+  const [Purchases, setPurchases] = useState<PurchasesModule['default'] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      // Skip on web or when no API key is configured
+      if (Platform.OS === 'web' || !RC_API_KEY) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const mod = await import('react-native-purchases');
+        const RC = mod.default;
+        setPurchases(RC);
+
+        RC.configure({ apiKey: RC_API_KEY });
+
+        // Check current entitlements
+        const customerInfo = await RC.getCustomerInfo();
+        const entitled = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+        setIsPro(entitled);
+
+        // Fetch offerings for paywall price display
+        const offerings = await RC.getOfferings();
+        setCurrentOffering(offerings.current ?? null);
+
+        // Listen for subscription changes
+        RC.addCustomerInfoUpdateListener((info) => {
+          setIsPro(info.entitlements.active[ENTITLEMENT_ID] !== undefined);
+        });
+      } catch (e) {
+        // RevenueCat init failed — run in free mode, no crash
+        console.warn('RevenueCat init failed:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
+
+  const purchasePremium = useCallback(async (): Promise<boolean> => {
+    if (!Purchases || !currentOffering) {
+      Alert.alert('Unavailable', 'Purchases are not available right now. Please try again later.');
+      return false;
+    }
+
+    const pkg = currentOffering.availablePackages[0];
+    if (!pkg) {
+      Alert.alert('Unavailable', 'No subscription package found. Please try again later.');
+      return false;
+    }
+
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const entitled = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+      setIsPro(entitled);
+      return entitled;
+    } catch (e: any) {
+      if (e.userCancelled) return false;
+      Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
+      return false;
+    }
+  }, [Purchases, currentOffering]);
+
+  const restorePurchases = useCallback(async (): Promise<boolean> => {
+    if (!Purchases) {
+      Alert.alert('Unavailable', 'Restore is not available right now. Please try again later.');
+      return false;
+    }
+
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      const entitled = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+      setIsPro(entitled);
+      if (!entitled) {
+        Alert.alert('No Subscription Found', 'We could not find an active subscription for this account.');
+      }
+      return entitled;
+    } catch (e) {
+      Alert.alert('Restore Failed', 'Something went wrong. Please try again.');
+      return false;
+    }
+  }, [Purchases]);
+
+  return (
+    <SubscriptionContext.Provider value={{ isPro, isLoading, currentOffering, purchasePremium, restorePurchases }}>
+      {children}
+    </SubscriptionContext.Provider>
+  );
+}
+</file>
+
+<file path="eas.json">
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+}
+</file>
+
+<file path="hooks/useHabitForm.ts">
+import { useCallback, useState } from 'react';
+import { LayoutAnimation } from 'react-native';
+
+import type { Category, FilterCategory, Habit, SoundChoice } from '@/types/habit';
+import { DEFAULT_INTERVAL_HOURS, TEMPLATES } from '@/constants/habits';
+import { dateToHHMM } from '@/utils/time';
+import type { HabitFormData } from './useHabits';
+
+export function useHabitForm(habits: Habit[], filterCategory: FilterCategory) {
+  const [expandedHabitId, setExpandedHabitId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editInterval, setEditInterval] = useState(DEFAULT_INTERVAL_HOURS);
+  const [editStartTime, setEditStartTime] = useState<string>(dateToHHMM(new Date()));
+  const [editCategory, setEditCategory] = useState<Category>('Wellness');
+  const [editSoundChoice, setEditSoundChoice] = useState<SoundChoice>('default');
+
+  const [showTimePickerModal, setShowTimePickerModal] = useState(false);
+  const [tempTime, setTempTime] = useState<Date | null>(null);
+
+  /**
+   * NEW: when creating a habit, you can select a template for the
+   * current category; we expose the templates for the active category
+   * and a helper to apply one.
+   */
+  const getTemplatesForCurrentCategory = (): { emoji: string; name: string; intervalHours: number }[] => {
+    const cat: Category =
+      filterCategory === 'All' ? 'Wellness' : (filterCategory as Category);
+    return TEMPLATES[cat] ?? [];
+  };
+
+  const applyTemplate = useCallback(
+    (template: { emoji: string; name: string; intervalHours: number }) => {
+      // Only meant to be used when adding a new habit.
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setEditName(`${template.emoji} ${template.name}`);
+      setEditInterval(template.intervalHours);
+      setEditStartTime(dateToHHMM(new Date()));
+      setEditCategory(filterCategory === 'All' ? 'Wellness' : (filterCategory as Category));
+      setEditSoundChoice('default');
+      setExpandedHabitId('new');
+    },
+    [filterCategory]
+  );
+
+  const toggleExpand = useCallback(
+    (id: string) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setExpandedHabitId((prev) => {
+        if (prev === id) return null;
+        if (id !== 'new') {
+          const habit = habits.find((h) => h.id === id);
+          if (habit) {
+            setEditName(habit.name);
+            setEditInterval(habit.intervalHours);
+            setEditStartTime(habit.startTime ?? dateToHHMM(new Date()));
+            setEditCategory(habit.category);
+            setEditSoundChoice(habit.soundChoice);
+          }
+        }
+        return id;
+      });
+    },
+    [habits]
+  );
+
+  const startAddHabit = useCallback(
+    () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setEditName('');
+      setEditInterval(DEFAULT_INTERVAL_HOURS);
+      setEditStartTime(dateToHHMM(new Date()));
+      setEditCategory(filterCategory === 'All' ? 'Wellness' : filterCategory);
+      setEditSoundChoice('default');
+      setExpandedHabitId('new');
+    },
+    [filterCategory]
+  );
+
+  const cancelEdit = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedHabitId(null);
+  }, []);
+
+  const closeExpanded = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedHabitId(null);
+  }, []);
+
+  const getFormData = (): HabitFormData => ({
+    name: editName,
+    intervalHours: editInterval,
+    startTime: editStartTime,
+    category: editCategory,
+    soundChoice: editSoundChoice,
+  });
+
+  const openTimePicker = useCallback(() => {
+    setTempTime(new Date());
+    setShowTimePickerModal(true);
+  }, []);
+
+  const cancelTimePicker = useCallback(() => {
+    setShowTimePickerModal(false);
+  }, []);
+
+  const confirmTimePicker = useCallback(() => {
+    if (tempTime) setEditStartTime(dateToHHMM(tempTime));
+    setShowTimePickerModal(false);
+  }, [tempTime]);
+
+  return {
+    expandedHabitId,
+    editName,
+    setEditName,
+    editInterval,
+    setEditInterval,
+    editStartTime,
+    editCategory,
+    setEditCategory,
+    editSoundChoice,
+    setEditSoundChoice,
+    showTimePickerModal,
+    tempTime,
+    setTempTime,
+    toggleExpand,
+    startAddHabit,
+    cancelEdit,
+    closeExpanded,
+    getFormData,
+    openTimePicker,
+    cancelTimePicker,
+    confirmTimePicker,
+
+    // NEW exports for template support
+    getTemplatesForCurrentCategory,
+    applyTemplate,
+  };
+}
+</file>
+
+<file path="hooks/useHabits.ts">
+import { useEffect, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import type { Habit, FilterCategory } from '@/types/habit';
+import { FREE_HABIT_LIMIT } from '@/constants/habits';
+import { toDateString } from '@/utils/time';
+import { calculateStreak, sanitizeHabitName } from '@/utils/habits';
+import {
+  ensureNotificationPermissions,
+  setupAndroidChannel,
+  scheduleReminder,
+  cancelReminder,
+  cancelAllReminders,
+} from '@/utils/notifications';
+import { useSubscription } from '@/context/SubscriptionContext';
+
+export interface HabitFormData {
+  name: string;
+  intervalHours: number;
+  startTime: string;
+  category: Habit['category'];
+  soundChoice: Habit['soundChoice'];
+}
+
+export interface DashboardStats {
+  completedToday: number;
+  totalHabits: number;
+  weekRate: number;
+  bestStreak: number;
+  last7Days: {
+    date: string;
+    dayLabel: string;
+    hasCompletion: boolean;
+    isToday: boolean;
+  }[];
+}
+
+export function useHabits(filterCategory: FilterCategory) {
+  const { isPro } = useSubscription();
+  const [habits, setHabits] = useState<Habit[]>([]);
+
+  const filteredHabits = useMemo(() => {
+    if (filterCategory === 'All') return habits;
+    return habits.filter((h) => h.category === filterCategory);
+  }, [habits, filterCategory]);
+
+  // --- Persistence ---
+
+  const loadHabits = async (): Promise<Habit[]> => {
+    try {
+      const stored = await AsyncStorage.getItem('habits');
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        const hydrated = parsed.map((h: any) => ({
+          ...h,
+          completions: h.completions ?? [],
+          bestStreak: h.bestStreak ?? h.streak ?? 0,
+          lastCompletedAt: h.lastCompletedAt ?? null,
+          soundChoice: h.soundChoice ?? 'default',
+        }));
+        setHabits(hydrated);
+        return hydrated;
+      }
+    } catch (e) {
+      Alert.alert('Load Error', 'Your saved habits could not be read and were reset.');
+      await AsyncStorage.removeItem('habits');
+    }
+    return [];
+  };
+
+  const saveHabits = async (updated: Habit[]) => {
+    setHabits(updated);
+    try {
+      await AsyncStorage.setItem('habits', JSON.stringify(updated));
+    } catch (e) {
+      Alert.alert('Save Failed', 'Your habits could not be saved. Changes may be lost if you close the app.');
+    }
+  };
+
+  // --- Lifecycle ---
+
+  useEffect(() => {
+    (async () => {
+      await cancelAllReminders();
+      const loaded = await loadHabits();
+      await ensureNotificationPermissions();
+      await setupAndroidChannel();
+
+      if (loaded.length > 0) {
+        const rescheduled = await Promise.all(
+          loaded.map(async (h) => {
+            const notifId = await scheduleReminder(h.name, h.intervalHours, h.startTime, h.soundChoice);
+            return { ...h, notificationId: notifId };
+          })
+        );
+        await saveHabits(rescheduled);
+      }
+    })();
+  }, []);
+
+  // --- CRUD ---
+
+  const createHabit = async (formData: HabitFormData) => {
+    const cleaned = sanitizeHabitName(formData.name);
+    if (!cleaned) {
+      Alert.alert('Missing Name', 'Please enter a habit name.');
+      return false;
+    }
+    const notifId = await scheduleReminder(cleaned, formData.intervalHours, formData.startTime, formData.soundChoice);
+    const newHabit: Habit = {
+      id: Date.now().toString(),
+      name: cleaned,
+      streak: 0,
+      notificationId: notifId,
+      intervalHours: formData.intervalHours,
+      startTime: formData.startTime,
+      category: formData.category,
+      bestStreak: 0,
+      completions: [],
+      lastCompletedAt: null,
+      soundChoice: formData.soundChoice,
+    };
+    await saveHabits([...habits, newHabit]);
+    return true;
+  };
+
+  const updateHabit = async (id: string, formData: HabitFormData) => {
+    const cleaned = sanitizeHabitName(formData.name);
+    if (!cleaned) {
+      Alert.alert('Missing Name', 'Please enter a habit name.');
+      return false;
+    }
+    const habit = habits.find((h) => h.id === id);
+    if (!habit) return false;
+
+    if (habit.notificationId) {
+      await cancelReminder(habit.notificationId);
+    }
+
+    const notifId = await scheduleReminder(cleaned, formData.intervalHours, formData.startTime, formData.soundChoice);
+    const updated = habits.map((h) =>
+      h.id === id
+        ? {
+            ...h,
+            name: cleaned,
+            intervalHours: formData.intervalHours,
+            startTime: formData.startTime,
+            category: formData.category,
+            notificationId: notifId,
+            soundChoice: formData.soundChoice,
+          }
+        : h
+    );
+    await saveHabits(updated);
+    return true;
+  };
+
+  const deleteHabit = async (id: string) => {
+    const habit = habits.find((h) => h.id === id);
+    if (!habit) return;
+
+    Alert.alert(
+      'Delete Habit',
+      `Are you sure you want to delete "${habit.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (habit.notificationId) {
+              await cancelReminder(habit.notificationId);
+            }
+            const updated = habits.filter((h) => h.id !== id);
+            await saveHabits(updated);
+          },
+        },
+      ]
+    );
+  };
+
+  const completeHabit = async (id: string) => {
+    const today = toDateString(new Date());
+    const habit = habits.find((h) => h.id === id);
+    if (!habit || habit.completions.includes(today)) return;
+    const completions = [...habit.completions, today];
+    const streak = calculateStreak(completions);
+    const bestStreak = Math.max(habit.bestStreak, streak);
+    const updated = habits.map((h) =>
+      h.id === id
+        ? { ...h, completions, streak, bestStreak, lastCompletedAt: new Date().toISOString() }
+        : h
+    );
+    await saveHabits(updated);
+  };
+
+  // --- Dashboard stats ---
+
+  const dashboardStats = useMemo((): DashboardStats | null => {
+    if (habits.length === 0) return null;
+    const today = toDateString(new Date());
+    const completedToday = habits.filter((h) => h.completions.includes(today)).length;
+    const totalHabits = habits.length;
+
+    const now = new Date();
+    let totalSlots = 0;
+    let filledSlots = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const ds = toDateString(d);
+      for (const h of habits) {
+        totalSlots++;
+        if (h.completions.includes(ds)) filledSlots++;
+      }
+    }
+    const weekRate = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+
+    const bestStreak = Math.max(0, ...habits.map((h) => h.bestStreak));
+
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (6 - i));
+      const ds = toDateString(d);
+      const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+      return {
+        date: ds,
+        dayLabel: dayLabels[d.getDay()],
+        hasCompletion: habits.some((h) => h.completions.includes(ds)),
+        isToday: ds === today,
+      };
+    });
+
+    return { completedToday, totalHabits, weekRate, bestStreak, last7Days };
+  }, [habits]);
+
+  const canCreateHabit = isPro || habits.length < FREE_HABIT_LIMIT;
+
+  return {
+    habits,
+    filteredHabits,
+    dashboardStats,
+    canCreateHabit,
+    createHabit,
+    updateHabit,
+    deleteHabit,
+    completeHabit,
+  };
+}
+</file>
+
+<file path="repomix-output.1.xml">
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: .claude/
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+app.json
+app/_layout.tsx
+app/index.tsx
+assets/images/android-icon-background.png
+assets/images/android-icon-foreground.png
+assets/images/android-icon-monochrome.png
+assets/images/favicon.png
+assets/images/icon.png
+assets/images/partial-react-logo.png
+assets/images/react-logo.png
+assets/images/react-logo@2x.png
+assets/images/react-logo@3x.png
+assets/images/splash-icon.png
+assets/sounds/.gitkeep
+assets/sounds/bell.wav
+assets/sounds/chime.wav
+assets/sounds/ping.wav
+assets/sounds/zen.wav
+components/IntervalSelector.tsx
+components/MonogramLogo.tsx
+components/PaywallModal.tsx
+components/SegmentedTabs.tsx
+components/SoundPicker.tsx
+components/TimePickerModal.tsx
+constants/habits.ts
+constants/revenueCat.ts
+context/SubscriptionContext.tsx
+eas.json
+eslint.config.js
+hooks/useHabitForm.ts
+hooks/useHabits.ts
+package.json
+README.md
+tsconfig.json
+types/habit.ts
+utils/habits.ts
+utils/notifications.ts
+utils/time.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="assets/sounds/.gitkeep">
+
+</file>
+
+<file path="components/IntervalSelector.tsx">
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { INTERVAL_OPTIONS } from '@/constants/habits';
+
+interface IntervalSelectorProps {
+  value: number;
+  onChange: (hours: number) => void;
+}
+
+export function IntervalSelector({ value, onChange }: IntervalSelectorProps) {
+  return (
+    <View style={styles.intervalRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.intervalBar}>
+        {INTERVAL_OPTIONS.map((hr) => {
+          const selected = value === hr;
+          return (
+            <TouchableOpacity
+              key={hr}
+              onPress={() => onChange(hr)}
+              activeOpacity={0.9}
+              style={[styles.intervalPill, selected ? styles.intervalPillSelected : styles.intervalPillUnselected]}
+            >
+              <Text style={[styles.intervalLabel, selected ? styles.intervalLabelSelected : styles.intervalLabelUnselected]}>
+                {hr}h
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  intervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  intervalBar: {
+    paddingVertical: 2,
+  },
+  intervalPill: {
+    minWidth: 56,
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  intervalPillSelected: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  intervalPillUnselected: {
+    backgroundColor: 'transparent',
+    borderColor: '#d1d5db',
+  },
+  intervalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  intervalLabelSelected: {
+    color: '#ffffff',
+  },
+  intervalLabelUnselected: {
+    color: '#111827',
+  },
+});
+</file>
+
+<file path="components/MonogramLogo.tsx">
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+export function MonogramLogo() {
+  return (
+    <View style={styles.monogram}>
+      <Text style={styles.monogramLetter}>M</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  monogram: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#16a34a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monogramLetter: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: '900',
+    lineHeight: 28,
+  },
+});
+</file>
+
+<file path="components/PaywallModal.tsx">
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
+import { useSubscription } from '@/context/SubscriptionContext';
+
+interface PaywallModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+  onPurchaseSuccess: () => void;
+}
+
+export function PaywallModal({ visible, onDismiss, onPurchaseSuccess }: PaywallModalProps) {
+  const { currentOffering, purchasePremium, restorePurchases } = useSubscription();
+  const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  const priceLabel = currentOffering?.availablePackages[0]?.product.priceString ?? '$1.99/year';
+
+  const handlePurchase = async () => {
+    setPurchasing(true);
+    const success = await purchasePremium();
+    setPurchasing(false);
+    if (success) onPurchaseSuccess();
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    const success = await restorePurchases();
+    setRestoring(false);
+    if (success) onPurchaseSuccess();
+  };
+
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.backdrop}>
+        <View style={styles.container}>
+          <Text style={styles.starIcon}>{'\u2B50'}</Text>
+          <Text style={styles.title}>Unlock Moneo Pro</Text>
+          <Text style={styles.subtitle}>Take your habits to the next level</Text>
+
+          <View style={styles.featureList}>
+            <Text style={styles.featureItem}>{'\u2713'}  Unlimited habits</Text>
+            <Text style={styles.featureItem}>{'\u2713'}  Custom notification sounds</Text>
+            <Text style={styles.featureItem}>{'\u2713'}  Support an indie developer</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.purchaseButton}
+            onPress={handlePurchase}
+            disabled={purchasing || restoring}
+            activeOpacity={0.85}
+          >
+            {purchasing ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.purchaseButtonText}>{priceLabel}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestore}
+            disabled={purchasing || restoring}
+            activeOpacity={0.7}
+          >
+            {restoring ? (
+              <ActivityIndicator color="#6b7280" size="small" />
+            ) : (
+              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dismissButton}
+            onPress={onDismiss}
+            disabled={purchasing || restoring}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.dismissButtonText}>Not Now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  container: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 28,
+    width: '85%',
+    alignItems: 'center',
+  },
+  starIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 20,
+  },
+  featureList: {
+    alignSelf: 'stretch',
+    marginBottom: 24,
+  },
+  featureItem: {
+    fontSize: 15,
+    color: '#374151',
+    paddingVertical: 6,
+    paddingLeft: 4,
+  },
+  purchaseButton: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  purchaseButtonText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  restoreButton: {
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  restoreButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dismissButton: {
+    paddingVertical: 8,
+  },
+  dismissButtonText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
+</file>
+
+<file path="components/SegmentedTabs.tsx">
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { CATEGORIES } from '@/constants/habits';
+import type { Category } from '@/types/habit';
+
+interface SegmentedTabsProps<T extends string = Category> {
+  value: T;
+  onChange: (val: T) => void;
+  options?: readonly T[];
+  compact?: boolean;
+}
+
+export function SegmentedTabs<T extends string = Category>({
+  value,
+  onChange,
+  options,
+  compact = false,
+}: SegmentedTabsProps<T>) {
+  const items = (options ?? CATEGORIES) as readonly T[];
+  return (
+    <View style={[styles.tabsContainer, compact && styles.tabsContainerCompact]}>
+      {items.map((item) => {
+        const selected = value === item;
+        return (
+          <TouchableOpacity
+            key={item}
+            onPress={() => onChange(item)}
+            activeOpacity={0.9}
+            style={[
+              styles.tabPill,
+              compact && styles.tabPillCompact,
+              selected ? styles.tabPillSelected : styles.tabPillUnselected,
+            ]}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                compact && styles.tabLabelCompact,
+                selected ? styles.tabLabelSelected : styles.tabLabelUnselected,
+              ]}
+            >
+              {item}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#e5e7eb',
+    padding: 3,
+    borderRadius: 999,
+    marginBottom: 8,
+    alignSelf: 'stretch',
+  },
+  tabsContainerCompact: {
+    padding: 2,
+    marginBottom: 0,
+  },
+  tabPill: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  tabPillCompact: {
+    paddingVertical: 5,
+  },
+  tabPillSelected: {
+    backgroundColor: '#16a34a',
+  },
+  tabPillUnselected: {
+    backgroundColor: 'transparent',
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tabLabelCompact: {
+    fontSize: 12,
+  },
+  tabLabelSelected: {
+    color: '#ffffff',
+  },
+  tabLabelUnselected: {
+    color: '#374151',
+  },
+});
+</file>
+
+<file path="components/SoundPicker.tsx">
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { SOUND_OPTIONS } from '@/constants/habits';
+import type { SoundChoice } from '@/types/habit';
+
+interface SoundPickerProps {
+  value: SoundChoice;
+  onChange: (choice: SoundChoice) => void;
+  isPro?: boolean;
+}
+
+export function SoundPicker({ value, onChange, isPro = true }: SoundPickerProps) {
+  return (
+    <View style={styles.intervalRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.intervalBar}>
+        {SOUND_OPTIONS.map((opt) => {
+          const selected = value === opt.key;
+          const locked = !isPro && opt.key !== 'default';
+          return (
+            <TouchableOpacity
+              key={opt.key}
+              onPress={() => { if (!locked) onChange(opt.key); }}
+              activeOpacity={locked ? 1 : 0.9}
+              style={[
+                styles.soundPill,
+                selected ? styles.intervalPillSelected : styles.intervalPillUnselected,
+                locked && styles.soundPillLocked,
+              ]}
+            >
+              <Text style={[styles.soundPillIcon, locked && styles.lockedText]}>
+                {locked ? '\u{1F512}' : opt.icon}
+              </Text>
+              <Text
+                style={[
+                  styles.soundPillLabel,
+                  selected ? styles.intervalLabelSelected : styles.intervalLabelUnselected,
+                  locked && styles.lockedText,
+                ]}
+              >
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  intervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  intervalBar: {
+    paddingVertical: 2,
+  },
+  soundPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 56,
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 6,
+    gap: 4,
+  },
+  soundPillLocked: {
+    opacity: 0.45,
+  },
+  intervalPillSelected: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  intervalPillUnselected: {
+    backgroundColor: 'transparent',
+    borderColor: '#d1d5db',
+  },
+  soundPillIcon: {
+    fontSize: 14,
+  },
+  soundPillLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  intervalLabelSelected: {
+    color: '#ffffff',
+  },
+  intervalLabelUnselected: {
+    color: '#111827',
+  },
+  lockedText: {
+    color: '#9ca3af',
+  },
+});
+</file>
+
+<file path="components/TimePickerModal.tsx">
+import React from 'react';
+import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+interface TimePickerModalProps {
+  visible: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  tempTime: Date | null;
+  setTempTime: (date: Date) => void;
+}
+
+export function TimePickerModal({ visible, onCancel, onConfirm, tempTime, setTempTime }: TimePickerModalProps) {
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onCancel}>
+      <View style={styles.timeModalBackdrop}>
+        <View style={styles.timeModalContainer}>
+          <DateTimePicker
+            value={tempTime || new Date()}
+            mode="time"
+            is24Hour={false}
+            display="spinner"
+            themeVariant="light"
+            onChange={(e, date) => {
+              if (date) setTempTime(date);
+            }}
+          />
+          <View style={styles.timeModalButtons}>
+            <TouchableOpacity style={styles.modalButton} onPress={onCancel}>
+              <Text style={styles.modalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.modalButton, styles.modalButtonPrimary]} onPress={onConfirm}>
+              <Text style={[styles.modalButtonText, styles.modalButtonPrimaryText]}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  timeModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    width: '80%',
+    alignItems: 'center',
+  },
+  timeModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 12,
+  },
+  modalButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  modalButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  modalButtonPrimaryText: {
+    color: '#ffffff',
+  },
+});
+</file>
+
+<file path="constants/habits.ts">
+import type { Category, FilterCategory, SoundOption } from '@/types/habit';
+
+export const INTERVAL_OPTIONS = [1, 2, 4, 8, 12, 24];
+export const DEFAULT_INTERVAL_HOURS = 2;
+export const CATEGORIES: readonly Category[] = ['Wellness', 'Professional', 'Student'] as const;
+export const FILTER_OPTIONS: readonly FilterCategory[] = ['All', ...CATEGORIES] as const;
+
+export const SOUND_OPTIONS: SoundOption[] = [
+  { key: 'default', label: 'Default', icon: '\u{1F514}' },
+  { key: 'chime', label: 'Chime', icon: '\u{1F3B5}', file: 'chime.wav' },
+  { key: 'bell', label: 'Bell', icon: '\u{1F515}', file: 'bell.wav' },
+  { key: 'ping', label: 'Ping', icon: '\u{1F4CC}', file: 'ping.wav' },
+  { key: 'zen', label: 'Zen', icon: '\u{1F9D8}', file: 'zen.wav' },
+];
+
+export const CATEGORY_COLORS: Record<Category, string> = {
+  Wellness: '#16a34a',
+  Professional: '#2563eb',
+  Student: '#7c3aed',
+};
+
+export const CATEGORY_BG_COLORS: Record<Category, string> = {
+  Wellness: '#f0fdf4',
+  Professional: '#eff6ff',
+  Student: '#f5f3ff',
+};
+
+export const TEMPLATES: Record<Category, { emoji: string; name: string; intervalHours: number }[]> = {
+  Wellness: [{ emoji: '\u{1F4A7}', name: 'Drink Water', intervalHours: 2 }],
+  Professional: [{ emoji: '\u{1F4E7}', name: 'Inbox Zero Check', intervalHours: 4 }],
+  Student: [{ emoji: '\u{1F4DA}', name: 'Homework Block', intervalHours: 4 }],
+};
+
+export const FREE_HABIT_LIMIT = 3;
+</file>
+
+<file path="constants/revenueCat.ts">
+export const RC_API_KEY = process.env.EXPO_PUBLIC_RC_API_KEY ?? '';
+
+export const ENTITLEMENT_ID = 'premium';
+export const PRODUCT_ID = 'premium_annual';
+</file>
+
+<file path="context/SubscriptionContext.tsx">
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Platform, Alert } from 'react-native';
+import { RC_API_KEY, ENTITLEMENT_ID } from '@/constants/revenueCat';
+
+type PurchasesModule = typeof import('react-native-purchases');
+type Offerings = Awaited<ReturnType<PurchasesModule['default']['getOfferings']>>;
+type PurchasesOffering = Offerings['current'];
+
+interface SubscriptionContextType {
+  isPro: boolean;
+  isLoading: boolean;
+  currentOffering: PurchasesOffering | null;
+  purchasePremium: () => Promise<boolean>;
+  restorePurchases: () => Promise<boolean>;
+}
+
+const SubscriptionContext = createContext<SubscriptionContextType>({
+  isPro: false,
+  isLoading: true,
+  currentOffering: null,
+  purchasePremium: async () => false,
+  restorePurchases: async () => false,
+});
+
+export function useSubscription() {
+  return useContext(SubscriptionContext);
+}
+
+export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
+  const [isPro, setIsPro] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentOffering, setCurrentOffering] = useState<PurchasesOffering | null>(null);
+  const [Purchases, setPurchases] = useState<PurchasesModule['default'] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      // Skip on web or when no API key is configured
+      if (Platform.OS === 'web' || !RC_API_KEY) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const mod = await import('react-native-purchases');
+        const RC = mod.default;
+        setPurchases(RC);
+
+        RC.configure({ apiKey: RC_API_KEY });
+
+        // Check current entitlements
+        const customerInfo = await RC.getCustomerInfo();
+        const entitled = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+        setIsPro(entitled);
+
+        // Fetch offerings for paywall price display
+        const offerings = await RC.getOfferings();
+        setCurrentOffering(offerings.current ?? null);
+
+        // Listen for subscription changes
+        RC.addCustomerInfoUpdateListener((info) => {
+          setIsPro(info.entitlements.active[ENTITLEMENT_ID] !== undefined);
+        });
+      } catch (e) {
+        // RevenueCat init failed — run in free mode, no crash
+        console.warn('RevenueCat init failed:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
+
+  const purchasePremium = useCallback(async (): Promise<boolean> => {
+    if (!Purchases || !currentOffering) {
+      Alert.alert('Unavailable', 'Purchases are not available right now. Please try again later.');
+      return false;
+    }
+
+    const pkg = currentOffering.availablePackages[0];
+    if (!pkg) {
+      Alert.alert('Unavailable', 'No subscription package found. Please try again later.');
+      return false;
+    }
+
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const entitled = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+      setIsPro(entitled);
+      return entitled;
+    } catch (e: any) {
+      if (e.userCancelled) return false;
+      Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
+      return false;
+    }
+  }, [Purchases, currentOffering]);
+
+  const restorePurchases = useCallback(async (): Promise<boolean> => {
+    if (!Purchases) {
+      Alert.alert('Unavailable', 'Restore is not available right now. Please try again later.');
+      return false;
+    }
+
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      const entitled = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+      setIsPro(entitled);
+      if (!entitled) {
+        Alert.alert('No Subscription Found', 'We could not find an active subscription for this account.');
+      }
+      return entitled;
+    } catch (e) {
+      Alert.alert('Restore Failed', 'Something went wrong. Please try again.');
+      return false;
+    }
+  }, [Purchases]);
+
+  return (
+    <SubscriptionContext.Provider value={{ isPro, isLoading, currentOffering, purchasePremium, restorePurchases }}>
+      {children}
+    </SubscriptionContext.Provider>
+  );
+}
+</file>
+
+<file path="eas.json">
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+}
+</file>
+
+<file path="hooks/useHabitForm.ts">
+import { useCallback, useState } from 'react';
+import { LayoutAnimation } from 'react-native';
+
+import type { Category, FilterCategory, Habit, SoundChoice } from '@/types/habit';
+import { DEFAULT_INTERVAL_HOURS, TEMPLATES } from '@/constants/habits';
+import { dateToHHMM } from '@/utils/time';
+import type { HabitFormData } from './useHabits';
+
+export function useHabitForm(habits: Habit[], filterCategory: FilterCategory) {
+  const [expandedHabitId, setExpandedHabitId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editInterval, setEditInterval] = useState(DEFAULT_INTERVAL_HOURS);
+  const [editStartTime, setEditStartTime] = useState<string>(dateToHHMM(new Date()));
+  const [editCategory, setEditCategory] = useState<Category>('Wellness');
+  const [editSoundChoice, setEditSoundChoice] = useState<SoundChoice>('default');
+
+  const [showTimePickerModal, setShowTimePickerModal] = useState(false);
+  const [tempTime, setTempTime] = useState<Date | null>(null);
+
+  /**
+   * NEW: when creating a habit, you can select a template for the
+   * current category; we expose the templates for the active category
+   * and a helper to apply one.
+   */
+  const getTemplatesForCurrentCategory = (): { emoji: string; name: string; intervalHours: number }[] => {
+    const cat: Category =
+      filterCategory === 'All' ? 'Wellness' : (filterCategory as Category);
+    return TEMPLATES[cat] ?? [];
+  };
+
+  const applyTemplate = useCallback(
+    (template: { emoji: string; name: string; intervalHours: number }) => {
+      // Only meant to be used when adding a new habit.
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setEditName(`${template.emoji} ${template.name}`);
+      setEditInterval(template.intervalHours);
+      setEditStartTime(dateToHHMM(new Date()));
+      setEditCategory(filterCategory === 'All' ? 'Wellness' : (filterCategory as Category));
+      setEditSoundChoice('default');
+      setExpandedHabitId('new');
+    },
+    [filterCategory]
+  );
+
+  const toggleExpand = useCallback(
+    (id: string) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setExpandedHabitId((prev) => {
+        if (prev === id) return null;
+        if (id !== 'new') {
+          const habit = habits.find((h) => h.id === id);
+          if (habit) {
+            setEditName(habit.name);
+            setEditInterval(habit.intervalHours);
+            setEditStartTime(habit.startTime ?? dateToHHMM(new Date()));
+            setEditCategory(habit.category);
+            setEditSoundChoice(habit.soundChoice);
+          }
+        }
+        return id;
+      });
+    },
+    [habits]
+  );
+
+  const startAddHabit = useCallback(
+    () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setEditName('');
+      setEditInterval(DEFAULT_INTERVAL_HOURS);
+      setEditStartTime(dateToHHMM(new Date()));
+      setEditCategory(filterCategory === 'All' ? 'Wellness' : filterCategory);
+      setEditSoundChoice('default');
+      setExpandedHabitId('new');
+    },
+    [filterCategory]
+  );
+
+  const cancelEdit = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedHabitId(null);
+  }, []);
+
+  const closeExpanded = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedHabitId(null);
+  }, []);
+
+  const getFormData = (): HabitFormData => ({
+    name: editName,
+    intervalHours: editInterval,
+    startTime: editStartTime,
+    category: editCategory,
+    soundChoice: editSoundChoice,
+  });
+
+  const openTimePicker = useCallback(() => {
+    setTempTime(new Date());
+    setShowTimePickerModal(true);
+  }, []);
+
+  const cancelTimePicker = useCallback(() => {
+    setShowTimePickerModal(false);
+  }, []);
+
+  const confirmTimePicker = useCallback(() => {
+    if (tempTime) setEditStartTime(dateToHHMM(tempTime));
+    setShowTimePickerModal(false);
+  }, [tempTime]);
+
+  return {
+    expandedHabitId,
+    editName,
+    setEditName,
+    editInterval,
+    setEditInterval,
+    editStartTime,
+    editCategory,
+    setEditCategory,
+    editSoundChoice,
+    setEditSoundChoice,
+    showTimePickerModal,
+    tempTime,
+    setTempTime,
+    toggleExpand,
+    startAddHabit,
+    cancelEdit,
+    closeExpanded,
+    getFormData,
+    openTimePicker,
+    cancelTimePicker,
+    confirmTimePicker,
+
+    // NEW exports for template support
+    getTemplatesForCurrentCategory,
+    applyTemplate,
+  };
+}
+</file>
+
+<file path="hooks/useHabits.ts">
+import { useEffect, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import type { Habit, FilterCategory } from '@/types/habit';
+import { FREE_HABIT_LIMIT } from '@/constants/habits';
+import { toDateString } from '@/utils/time';
+import { calculateStreak, sanitizeHabitName } from '@/utils/habits';
+import {
+  ensureNotificationPermissions,
+  setupAndroidChannel,
+  scheduleReminder,
+  cancelReminder,
+  cancelAllReminders,
+} from '@/utils/notifications';
+import { useSubscription } from '@/context/SubscriptionContext';
+
+export interface HabitFormData {
+  name: string;
+  intervalHours: number;
+  startTime: string;
+  category: Habit['category'];
+  soundChoice: Habit['soundChoice'];
+}
+
+export interface DashboardStats {
+  completedToday: number;
+  totalHabits: number;
+  weekRate: number;
+  bestStreak: number;
+  last7Days: {
+    date: string;
+    dayLabel: string;
+    hasCompletion: boolean;
+    isToday: boolean;
+  }[];
+}
+
+export function useHabits(filterCategory: FilterCategory) {
+  const { isPro } = useSubscription();
+  const [habits, setHabits] = useState<Habit[]>([]);
+
+  const filteredHabits = useMemo(() => {
+    if (filterCategory === 'All') return habits;
+    return habits.filter((h) => h.category === filterCategory);
+  }, [habits, filterCategory]);
+
+  // --- Persistence ---
+
+  const loadHabits = async (): Promise<Habit[]> => {
+    try {
+      const stored = await AsyncStorage.getItem('habits');
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        const hydrated = parsed.map((h: any) => ({
+          ...h,
+          completions: h.completions ?? [],
+          bestStreak: h.bestStreak ?? h.streak ?? 0,
+          lastCompletedAt: h.lastCompletedAt ?? null,
+          soundChoice: h.soundChoice ?? 'default',
+        }));
+        setHabits(hydrated);
+        return hydrated;
+      }
+    } catch (e) {
+      Alert.alert('Load Error', 'Your saved habits could not be read and were reset.');
+      await AsyncStorage.removeItem('habits');
+    }
+    return [];
+  };
+
+  const saveHabits = async (updated: Habit[]) => {
+    setHabits(updated);
+    try {
+      await AsyncStorage.setItem('habits', JSON.stringify(updated));
+    } catch (e) {
+      Alert.alert('Save Failed', 'Your habits could not be saved. Changes may be lost if you close the app.');
+    }
+  };
+
+  // --- Lifecycle ---
+
+  useEffect(() => {
+    (async () => {
+      await cancelAllReminders();
+      const loaded = await loadHabits();
+      await ensureNotificationPermissions();
+      await setupAndroidChannel();
+
+      if (loaded.length > 0) {
+        const rescheduled = await Promise.all(
+          loaded.map(async (h) => {
+            const notifId = await scheduleReminder(h.name, h.intervalHours, h.startTime, h.soundChoice);
+            return { ...h, notificationId: notifId };
+          })
+        );
+        await saveHabits(rescheduled);
+      }
+    })();
+  }, []);
+
+  // --- CRUD ---
+
+  const createHabit = async (formData: HabitFormData) => {
+    const cleaned = sanitizeHabitName(formData.name);
+    if (!cleaned) {
+      Alert.alert('Missing Name', 'Please enter a habit name.');
+      return false;
+    }
+    const notifId = await scheduleReminder(cleaned, formData.intervalHours, formData.startTime, formData.soundChoice);
+    const newHabit: Habit = {
+      id: Date.now().toString(),
+      name: cleaned,
+      streak: 0,
+      notificationId: notifId,
+      intervalHours: formData.intervalHours,
+      startTime: formData.startTime,
+      category: formData.category,
+      bestStreak: 0,
+      completions: [],
+      lastCompletedAt: null,
+      soundChoice: formData.soundChoice,
+    };
+    await saveHabits([...habits, newHabit]);
+    return true;
+  };
+
+  const updateHabit = async (id: string, formData: HabitFormData) => {
+    const cleaned = sanitizeHabitName(formData.name);
+    if (!cleaned) {
+      Alert.alert('Missing Name', 'Please enter a habit name.');
+      return false;
+    }
+    const habit = habits.find((h) => h.id === id);
+    if (!habit) return false;
+
+    if (habit.notificationId) {
+      await cancelReminder(habit.notificationId);
+    }
+
+    const notifId = await scheduleReminder(cleaned, formData.intervalHours, formData.startTime, formData.soundChoice);
+    const updated = habits.map((h) =>
+      h.id === id
+        ? {
+            ...h,
+            name: cleaned,
+            intervalHours: formData.intervalHours,
+            startTime: formData.startTime,
+            category: formData.category,
+            notificationId: notifId,
+            soundChoice: formData.soundChoice,
+          }
+        : h
+    );
+    await saveHabits(updated);
+    return true;
+  };
+
+  const deleteHabit = async (id: string) => {
+    const habit = habits.find((h) => h.id === id);
+    if (!habit) return;
+
+    Alert.alert(
+      'Delete Habit',
+      `Are you sure you want to delete "${habit.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (habit.notificationId) {
+              await cancelReminder(habit.notificationId);
+            }
+            const updated = habits.filter((h) => h.id !== id);
+            await saveHabits(updated);
+          },
+        },
+      ]
+    );
+  };
+
+  const completeHabit = async (id: string) => {
+    const today = toDateString(new Date());
+    const habit = habits.find((h) => h.id === id);
+    if (!habit || habit.completions.includes(today)) return;
+    const completions = [...habit.completions, today];
+    const streak = calculateStreak(completions);
+    const bestStreak = Math.max(habit.bestStreak, streak);
+    const updated = habits.map((h) =>
+      h.id === id
+        ? { ...h, completions, streak, bestStreak, lastCompletedAt: new Date().toISOString() }
+        : h
+    );
+    await saveHabits(updated);
+  };
+
+  // --- Dashboard stats ---
+
+  const dashboardStats = useMemo((): DashboardStats | null => {
+    if (habits.length === 0) return null;
+    const today = toDateString(new Date());
+    const completedToday = habits.filter((h) => h.completions.includes(today)).length;
+    const totalHabits = habits.length;
+
+    const now = new Date();
+    let totalSlots = 0;
+    let filledSlots = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const ds = toDateString(d);
+      for (const h of habits) {
+        totalSlots++;
+        if (h.completions.includes(ds)) filledSlots++;
+      }
+    }
+    const weekRate = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+
+    const bestStreak = Math.max(0, ...habits.map((h) => h.bestStreak));
+
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (6 - i));
+      const ds = toDateString(d);
+      const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+      return {
+        date: ds,
+        dayLabel: dayLabels[d.getDay()],
+        hasCompletion: habits.some((h) => h.completions.includes(ds)),
+        isToday: ds === today,
+      };
+    });
+
+    return { completedToday, totalHabits, weekRate, bestStreak, last7Days };
+  }, [habits]);
+
+  const canCreateHabit = isPro || habits.length < FREE_HABIT_LIMIT;
+
+  return {
+    habits,
+    filteredHabits,
+    dashboardStats,
+    canCreateHabit,
+    createHabit,
+    updateHabit,
+    deleteHabit,
+    completeHabit,
+  };
+}
+</file>
+
+<file path="types/habit.ts">
+export type Category = 'Wellness' | 'Professional' | 'Student';
+export type FilterCategory = Category | 'All';
+export type SoundChoice = 'default' | 'chime' | 'bell' | 'ping' | 'zen';
+
+export interface Habit {
+  id: string;
+  name: string;
+  streak: number;
+  notificationId: string | null;
+  intervalHours: number;
+  startTime: string | null;
+  category: Category;
+  bestStreak: number;
+  completions: string[];
+  lastCompletedAt: string | null;
+  soundChoice: SoundChoice;
+}
+
+export interface SoundOption {
+  key: SoundChoice;
+  label: string;
+  icon: string;
+  file?: string;
+}
+</file>
+
+<file path="utils/habits.ts">
+import { toDateString } from './time';
+
+export function sanitizeHabitName(name: string) {
+  return (name ?? '').toString().replace(/\s+/g, ' ').trim();
+}
+
+export function calculateStreak(completions: string[]): number {
+  if (completions.length === 0) return 0;
+  const sorted = [...completions].sort();
+  const today = new Date();
+  let check = toDateString(today);
+  if (!sorted.includes(check)) {
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    check = toDateString(yesterday);
+    if (!sorted.includes(check)) return 0;
+  }
+  let streak = 0;
+  const cursor = new Date(check);
+  while (sorted.includes(toDateString(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+</file>
+
+<file path="utils/notifications.ts">
+import { Platform, Alert } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { SOUND_OPTIONS } from '@/constants/habits';
+import { hoursToSeconds } from '@/utils/time';
+import type { SoundChoice } from '@/types/habit';
+
+/**
+ * Ensure we always work in local device time.
+ */
+
+export async function ensureNotificationPermissions() {
+  if (Platform.OS === 'web') return;
+  try {
+    const settings = await Notifications.getPermissionsAsync();
+    if (!settings.granted) await Notifications.requestPermissionsAsync();
+  } catch (e) {
+    Alert.alert(
+      'Permissions',
+      'Could not request notification permissions. Please enable them in Settings.'
+    );
+  }
+}
+
+export async function setupAndroidChannel() {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync('moneo-default', {
+      name: 'Moneo Reminders',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
+  } catch (e) {
+    Alert.alert(
+      'Notification Setup',
+      'Could not configure notification channel. Reminders may not work.'
+    );
+  }
+}
+
+/**
+ * Given interval + start time, compute the next aligned local Date AFTER now.
+ */
+function computeNextAlignedTime(
+  intervalH: number,
+  startHHMM: string | null | undefined
+): Date {
+  const now = new Date();
+
+  if (!startHHMM) {
+    const fallback = new Date(now);
+    fallback.setSeconds(fallback.getSeconds() + Math.max(5, hoursToSeconds(intervalH)));
+    return fallback;
+  }
+
+  const [startHour, startMinute] = startHHMM.split(':').map((v) => parseInt(v, 10));
+
+  const base = new Date(now);
+  base.setHours(startHour, startMinute, 0, 0);
+
+  if (base > now) {
+    return base;
+  }
+
+  const next = new Date(base);
+  const stepMs = intervalH * 60 * 60 * 1000;
+
+  if (!Number.isFinite(stepMs) || stepMs <= 0) {
+    const fallback = new Date(now);
+    fallback.setSeconds(fallback.getSeconds() + 60);
+    return fallback;
+  }
+
+  while (next <= now) {
+    next.setTime(next.getTime() + stepMs);
+  }
+
+  return next;
+}
+
+export async function scheduleReminder(
+  title: string,
+  intervalH: number,
+  startHHMM?: string | null,
+  soundChoice: SoundChoice = 'default'
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+
+  console.log('📅 Scheduling', { title, intervalH, startHHMM, soundChoice });
+
+  const soundOption = SOUND_OPTIONS.find((s) => s.key === soundChoice);
+  const soundValue: boolean | string = soundOption?.file ?? true;
+
+  // More descriptive content: habit name in both title and body.
+  const content = {
+    title: `Moneo · ${title}`,
+    body: `“${title}” is due now. Tap to review or complete this micro-habit. 🌱`,
+    sound: soundValue,
+  };
+
+  try {
+    // Daily habits aligned to a fixed clock time.
+    if (intervalH === 24 && startHHMM) {
+      const [hour, minute] = startHHMM.split(':').map((v) => parseInt(v, 10));
+      const now = new Date();
+      const triggerTime = new Date();
+      triggerTime.setHours(hour, minute, 0, 0);
+      if (triggerTime <= now) triggerTime.setDate(triggerTime.getDate() + 1);
+
+      console.log('⏰ Daily habit scheduled for', triggerTime.toLocaleString());
+
+      return await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: triggerTime.getHours(),
+          minute: triggerTime.getMinutes(),
+          repeats: true,
+        },
+      });
+    }
+
+    // Other intervals aligned to the chosen grid.
+    const next = computeNextAlignedTime(intervalH, startHHMM ?? null);
+
+    console.log('⏳ Interval habit scheduled for', next.toLocaleString(), 'local time');
+
+    return await Notifications.scheduleNotificationAsync({
+      content,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+        hour: next.getHours(),
+        minute: next.getMinutes(),
+        repeats: true,
+      },
+    });
+  } catch (e) {
+    Alert.alert(
+      'Reminder Failed',
+      'Could not schedule the notification. The habit was saved but reminders may not fire.'
+    );
+    return null;
+  }
+}
+
+export async function cancelReminder(notificationId: string) {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch (_) {
+    // best effort
+  }
+}
+
+export async function cancelAllReminders() {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+}
+</file>
+
+<file path="utils/time.ts">
+export function pad2(x: number) {
+  return String(x).padStart(2, '0');
+}
+
+export function hoursToSeconds(h: number | string) {
+  const n = Number(h);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 3600) : 0;
+}
+
+export function dateToHHMM(d: Date) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+export function formatTimeDisplay(hhmm: string | null) {
+  if (!hhmm) return '--:--';
+  const [hourStr, minuteStr] = hhmm.split(':');
+  let hour = parseInt(hourStr, 10);
+  const minute = parseInt(minuteStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${pad2(minute)} ${ampm}`;
+}
+
+export function toDateString(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+</file>
+
+<file path=".gitignore">
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+</file>
+
+<file path="app/_layout.tsx">
+import { Stack } from 'expo-router';
+import { SubscriptionProvider } from '@/context/SubscriptionContext';
+
+export default function RootLayout() {
+  return (
+    <SubscriptionProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </SubscriptionProvider>
+  );
+}
+</file>
+
+<file path="app/index.tsx">
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  LayoutAnimation,
+  UIManager,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
+
+import type { Category, FilterCategory, Habit } from '@/types/habit';
+import {
+  SOUND_OPTIONS,
+  FILTER_OPTIONS,
+  CATEGORY_COLORS,
+  CATEGORY_BG_COLORS,
+} from '@/constants/habits';
+import { formatTimeDisplay, toDateString } from '@/utils/time';
+import { MonogramLogo } from '@/components/MonogramLogo';
+import { SegmentedTabs } from '@/components/SegmentedTabs';
+import { IntervalSelector } from '@/components/IntervalSelector';
+import { SoundPicker } from '@/components/SoundPicker';
+import { TimePickerModal } from '@/components/TimePickerModal';
+import { PaywallModal } from '@/components/PaywallModal';
+import { useHabits } from '@/hooks/useHabits';
+import { useHabitForm } from '@/hooks/useHabitForm';
+import { useSubscription } from '@/context/SubscriptionContext';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Notification handler
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+export default function Index() {
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('All');
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { isPro } = useSubscription();
+
+  const {
+    filteredHabits,
+    dashboardStats,
+    canCreateHabit,
+    createHabit,
+    updateHabit,
+    deleteHabit,
+    completeHabit,
+    habits,
+  } = useHabits(filterCategory);
+
+  const form = useHabitForm(habits, filterCategory);
+
+  // --- Inline renderers ---
+
+  const handleCreate = async () => {
+    const success = await createHabit(form.getFormData());
+    if (success) form.closeExpanded();
+  };
+
+  const handleUpdate = async (id: string) => {
+    const success = await updateHabit(id, form.getFormData());
+    if (success) form.closeExpanded();
+  };
+
+  const handleDelete = (id: string) => {
+    deleteHabit(id);
+    form.closeExpanded();
+  };
+
+  const handleStartAdd = () => {
+    if (!canCreateHabit) {
+      setShowPaywall(true);
+      return;
+    }
+    form.startAddHabit();
+  };
+
+  const renderDashboard = () => {
+    if (!dashboardStats) return null;
+    const { completedToday, totalHabits, weekRate, bestStreak, last7Days } = dashboardStats;
+    const allDone = completedToday === totalHabits;
+    const statColor = allDone ? '#16a34a' : completedToday > 0 ? '#d97706' : '#9ca3af';
+    return (
+      <View style={styles.dashboardSection}>
+        <View style={styles.statCardsRow}>
+          <View style={styles.statCard}>
+            <Text style={[styles.statValue, { color: statColor }]}>
+              {completedToday}/{totalHabits}
+            </Text>
+            <Text style={styles.statLabel}>Today</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{weekRate}%</Text>
+            <Text style={styles.statLabel}>This Week</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{bestStreak > 0 ? '\u{1F525} ' + bestStreak : '0'}</Text>
+            <Text style={styles.statLabel}>Best Streak</Text>
+          </View>
+        </View>
+        <View style={styles.weekRow}>
+          {last7Days.map((day) => (
+            <View key={day.date} style={styles.dayColumn}>
+              <View
+                style={[
+                  styles.dayDot,
+                  day.hasCompletion
+                    ? styles.dayDotFilled
+                    : day.isToday
+                    ? styles.dayDotToday
+                    : styles.dayDotEmpty,
+                ]}
+              />
+              <Text style={styles.dayLabel}>{day.dayLabel}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderTemplateRow = () => {
+    const templates = form.getTemplatesForCurrentCategory();
+    if (templates.length === 0) return null;
+
+    return (
+      <View style={styles.templatesSection}>
+        <Text style={styles.templatesLabel}>Quick templates</Text>
+        <View style={styles.templatesRow}>
+          {templates.map((tpl) => (
+            <TouchableOpacity
+              key={tpl.name}
+              style={styles.templatePill}
+              onPress={() => form.applyTemplate(tpl)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.templateEmoji}>{tpl.emoji}</Text>
+              <Text style={styles.templateText}>{tpl.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderEditForm = (mode: 'new' | 'edit', habitId?: string) => (
+    <View style={styles.editForm}>
+      {mode === 'new' && renderTemplateRow()}
+
+      <Text style={styles.editLabel}>Habit Name</Text>
+      <TextInput
+        style={styles.editInput}
+        placeholder="e.g. Drink Water"
+        value={form.editName}
+        onChangeText={form.setEditName}
+        returnKeyType="done"
+        autoFocus={mode === 'new'}
+      />
+
+      <Text style={styles.editLabel}>Category</Text>
+      <SegmentedTabs<Category> value={form.editCategory} onChange={form.setEditCategory} compact />
+
+      <Text style={[styles.editLabel, { marginTop: 12 }]}>Reminder Interval</Text>
+      <IntervalSelector value={form.editInterval} onChange={form.setEditInterval} />
+
+      <Text style={[styles.editLabel, { marginTop: 12 }]}>Notification Sound</Text>
+      <SoundPicker value={form.editSoundChoice} onChange={form.setEditSoundChoice} isPro={isPro} />
+
+      <View style={styles.editTimeRow}>
+        <Text style={styles.editLabel}>Start Time</Text>
+        <TouchableOpacity style={styles.editTimeButton} onPress={form.openTimePicker}>
+          <Text style={styles.clockIcon}>{'\u{1F552}'}</Text>
+          <Text style={styles.timeText}>{formatTimeDisplay(form.editStartTime)}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.editActions}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={mode === 'new' ? handleCreate : () => handleUpdate(habitId!)}
+        >
+          <Text style={styles.primaryButtonText}>
+            {mode === 'new' ? 'Create Habit' : 'Save Changes'}
+          </Text>
+        </TouchableOpacity>
+        {mode === 'edit' && (
+          <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(habitId!)}>
+            <Text style={styles.deleteButtonText}>Delete</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.cancelButton} onPress={form.cancelEdit}>
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderHabitCard = ({ item }: { item: Habit }) => {
+    const isExpanded = form.expandedHabitId === item.id;
+    const catColor = CATEGORY_COLORS[item.category];
+    const catBg = CATEGORY_BG_COLORS[item.category];
+    const today = toDateString(new Date());
+    const doneToday = item.completions.includes(today);
+
+    return (
+      <View style={[styles.card, { borderLeftColor: catColor }]}>
+        <View style={styles.cardRow}>
+          {doneToday ? (
+            <View style={styles.checkCircleDone}>
+              <Text style={styles.checkMark}>{'\u2713'}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => completeHabit(item.id)}
+              style={styles.checkCircle}
+            />
+          )}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => form.toggleExpand(item.id)}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.cardHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardName}>{item.name}</Text>
+                <View style={styles.cardMeta}>
+                  <View style={[styles.metaPill, { backgroundColor: catBg }]}>
+                    <Text style={[styles.metaPillText, { color: catColor }]}>{item.category}</Text>
+                  </View>
+                  <View style={styles.metaPillNeutral}>
+                    <Text style={styles.metaPillNeutralText}>every {item.intervalHours}h</Text>
+                  </View>
+                  <View style={styles.metaPillNeutral}>
+                    <Text style={styles.metaPillNeutralText}>
+                      {formatTimeDisplay(item.startTime)}
+                    </Text>
+                  </View>
+                  {item.soundChoice !== 'default' && (
+                    <View style={styles.metaPillNeutral}>
+                      <Text style={styles.metaPillNeutralText}>
+                        {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.icon}{' '}
+                        {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.label}
+                      </Text>
+                    </View>
+                  )}
+                  {item.streak > 0 && (
+                    <View style={styles.streakPill}>
+                      <Text style={styles.streakPillText}>{'\u{1F525}'} {item.streak}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <Text style={[styles.chevron, isExpanded && styles.chevronExpanded]}>
+                {'\u203A'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+        {isExpanded && renderEditForm('edit', item.id)}
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <MonogramLogo />
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Moneo</Text>
+            <Text style={styles.subtitle}>Micro-habit tracker</Text>
+          </View>
+        </View>
+
+        <SegmentedTabs<FilterCategory>
+          value={filterCategory}
+          onChange={(val) => {
+            setFilterCategory(val);
+            if (form.expandedHabitId && form.expandedHabitId !== 'new') {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              form.closeExpanded();
+            }
+          }}
+          options={FILTER_OPTIONS}
+        />
+
+        <Text style={styles.habitCount}>
+          {filteredHabits.length} habit{filteredHabits.length !== 1 ? 's' : ''}
+        </Text>
+
+        <FlatList
+          data={filteredHabits}
+          keyExtractor={(item) => item.id}
+          extraData={form.expandedHabitId}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <>
+              {renderDashboard()}
+              {form.expandedHabitId === 'new' ? (
+                <View style={[styles.card, styles.newCard]}>
+                  <Text style={styles.newCardTitle}>New Habit</Text>
+                  {renderEditForm('new')}
+                </View>
+              ) : null}
+            </>
+          }
+          renderItem={renderHabitCard}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>{'\u{1F331}'}</Text>
+              <Text style={styles.emptyTitle}>
+                {filterCategory === 'All' ? 'No habits yet' : `No ${filterCategory} habits`}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Tap the + button to create your first micro-habit
+              </Text>
+            </View>
+          }
+        />
+
+        {form.expandedHabitId !== 'new' && (
+          <TouchableOpacity style={styles.fab} onPress={handleStartAdd} activeOpacity={0.85}>
+            <Text style={styles.fabIcon}>+</Text>
+          </TouchableOpacity>
+        )}
+
+        <TimePickerModal
+          visible={form.showTimePickerModal}
+          tempTime={form.tempTime}
+          setTempTime={form.setTempTime}
+          onCancel={form.cancelTimePicker}
+          onConfirm={form.confirmTimePicker}
+        />
+
+        <PaywallModal
+          visible={showPaywall}
+          onDismiss={() => setShowPaywall(false)}
+          onPurchaseSuccess={() => {
+            setShowPaywall(false);
+            form.startAddHabit();
+          }}
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 0,
+    paddingBottom: 4,
+    paddingLeft: 4,
+  },
+  headerText: {
+    marginLeft: 10,
+    flex: 1,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  habitCount: {
+    fontSize: 13,
+    color: '#9ca3af',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  listContent: {
+    paddingBottom: 80,
+  },
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#d1d5db',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  newCard: {
+    borderLeftColor: '#16a34a',
+    marginBottom: 12,
+  },
+  newCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  cardMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  metaPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+  },
+  metaPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  metaPillNeutral: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: '#f3f4f6',
+  },
+  metaPillNeutralText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  streakPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: '#fff7ed',
+  },
+  streakPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ea580c',
+  },
+  chevron: {
+    fontSize: 22,
+    color: '#9ca3af',
+    marginLeft: 8,
+    fontWeight: '300',
+  },
+  chevronExpanded: {
+    transform: [{ rotate: '90deg' }],
+  },
+  editForm: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  editLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#fafafa',
+    marginBottom: 12,
+  },
+  editTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  editTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#fafafa',
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: '#16a34a',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  deleteButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: 60,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#16a34a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  fabIcon: {
+    fontSize: 28,
+    color: '#ffffff',
+    fontWeight: '300',
+    lineHeight: 30,
+  },
+  dashboardSection: {
+    marginBottom: 12,
+  },
+  statCardsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 6,
+  },
+  dayColumn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  dayDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  dayDotFilled: {
+    backgroundColor: '#16a34a',
+  },
+  dayDotEmpty: {
+    backgroundColor: '#d1d5db',
+  },
+  dayDotToday: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#16a34a',
+  },
+  dayLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#9ca3af',
+  },
+  checkCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    marginRight: 10,
+    alignSelf: 'center',
+  },
+  checkCircleDone: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#16a34a',
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
+  checkMark: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  clockIcon: {
+    fontSize: 18,
+    marginRight: 4,
+  },
+  timeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  templatesSection: {
+    marginBottom: 12,
+  },
+  templatesLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  templatesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  templatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#eef2ff',
+  },
+  templateEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  templateText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4338ca',
+  },
+});
+</file>
+
+<file path="app.json">
+{
+  "expo": {
+    "name": "moneo",
+    "slug": "moneo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "moneo",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.moneo.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.moneo.app"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/chime.wav",
+            "./assets/sounds/bell.wav",
+            "./assets/sounds/ping.wav",
+            "./assets/sounds/zen.wav"
+          ]
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "036eb4ec-3efd-426a-a527-0049784e0361"
+      }
+    }
+  }
+}
+</file>
+
+<file path="eslint.config.js">
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+</file>
+
+<file path="package.json">
+{
+  "name": "moneo",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
+    "@react-navigation/native": "^7.1.8",
+    "expo": "~54.0.33",
+    "expo-constants": "~18.0.9",
+    "expo-dev-client": "~6.0.20",
+    "expo-font": "~14.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-notifications": "~0.32.16",
+    "expo-router": "~6.0.23",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~6.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-purchases": "^9.10.4",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+</file>
+
+<file path="README.md">
+# Moneo
+
+Moneo is a cross-platform mobile application built with **Expo** and **React Native**, designed as a foundation for a modern, metrics-driven personal finance and monitoring experience.
+
+The project is structured as a clean, standalone Expo-managed app, suitable for rapid iteration, experimentation, and eventual production hardening.
+
+---
+
+## 🚀 Tech Stack
+
+- **Expo**
+- **React Native**
+- **TypeScript**
+- **Node.js**
+- **Metro Bundler**
+
+---
+
+## 📁 Project Structure
+
+```text
+moneo/
+├── app/                # App routes and screens
+├── assets/             # Static assets
+├── components/         # Reusable UI components
+├── hooks/              # Custom React hooks
+├── constants/          # Shared constants
+├── package.json
+├── app.json
+└── README.md
+🛠️ Getting Started
+Prerequisites
+Node.js (LTS recommended)
+
+npm or yarn
+
+Expo CLI (optional — npx works fine)
+
+Install dependencies
+npm install
+Start the development server
+npx expo start
+From there you can:
+
+Run on an iOS simulator
+
+Run on an Android emulator
+
+Scan the QR code with Expo Go on a physical device
+
+🧪 Development Notes
+This project uses an Expo-managed workflow
+
+Native folders (ios/, android/) are intentionally ignored
+
+Environment-specific files are excluded via .gitignore
+
+Dependencies are restored via npm install
+
+📌 Status
+This project is under active development and serves as:
+
+A working mobile application
+
+A foundation for future features
+
+A portfolio-quality example of a modern React Native app
+
+📄 License
+This project is currently unlicensed and intended for personal or internal use.
+
+
+---
+
+## Next steps (recommended)
+
+After adding the file:
+
+```bash
+git add README.md
+git commit -m "Add README"
+git push
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "app-example"
+  ]
+}
+</file>
+
+</files>
+</file>
+
+<file path="types/habit.ts">
+export type Category = 'Wellness' | 'Professional' | 'Student';
+export type FilterCategory = Category | 'All';
+export type SoundChoice = 'default' | 'chime' | 'bell' | 'ping' | 'zen';
+
+export interface Habit {
+  id: string;
+  name: string;
+  streak: number;
+  notificationId: string | null;
+  intervalHours: number;
+  startTime: string | null;
+  category: Category;
+  bestStreak: number;
+  completions: string[];
+  lastCompletedAt: string | null;
+  soundChoice: SoundChoice;
+}
+
+export interface SoundOption {
+  key: SoundChoice;
+  label: string;
+  icon: string;
+  file?: string;
+}
+</file>
+
+<file path="utils/habits.ts">
+import { toDateString } from './time';
+
+export function sanitizeHabitName(name: string) {
+  return (name ?? '').toString().replace(/\s+/g, ' ').trim();
+}
+
+export function calculateStreak(completions: string[]): number {
+  if (completions.length === 0) return 0;
+  const sorted = [...completions].sort();
+  const today = new Date();
+  let check = toDateString(today);
+  if (!sorted.includes(check)) {
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    check = toDateString(yesterday);
+    if (!sorted.includes(check)) return 0;
+  }
+  let streak = 0;
+  const cursor = new Date(check);
+  while (sorted.includes(toDateString(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+</file>
+
+<file path="utils/notifications.ts">
+import { Platform, Alert } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { SOUND_OPTIONS } from '@/constants/habits';
+import { hoursToSeconds } from '@/utils/time';
+import type { SoundChoice } from '@/types/habit';
+
+/**
+ * Ensure we always work in local device time.
+ */
+
+export async function ensureNotificationPermissions() {
+  if (Platform.OS === 'web') return;
+  try {
+    const settings = await Notifications.getPermissionsAsync();
+    if (!settings.granted) await Notifications.requestPermissionsAsync();
+  } catch (e) {
+    Alert.alert(
+      'Permissions',
+      'Could not request notification permissions. Please enable them in Settings.'
+    );
+  }
+}
+
+export async function setupAndroidChannel() {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync('moneo-default', {
+      name: 'Moneo Reminders',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
+  } catch (e) {
+    Alert.alert(
+      'Notification Setup',
+      'Could not configure notification channel. Reminders may not work.'
+    );
+  }
+}
+
+/**
+ * Given interval + start time, compute the next aligned local Date AFTER now.
+ */
+function computeNextAlignedTime(
+  intervalH: number,
+  startHHMM: string | null | undefined
+): Date {
+  const now = new Date();
+
+  if (!startHHMM) {
+    const fallback = new Date(now);
+    fallback.setSeconds(fallback.getSeconds() + Math.max(5, hoursToSeconds(intervalH)));
+    return fallback;
+  }
+
+  const [startHour, startMinute] = startHHMM.split(':').map((v) => parseInt(v, 10));
+
+  const base = new Date(now);
+  base.setHours(startHour, startMinute, 0, 0);
+
+  if (base > now) {
+    return base;
+  }
+
+  const next = new Date(base);
+  const stepMs = intervalH * 60 * 60 * 1000;
+
+  if (!Number.isFinite(stepMs) || stepMs <= 0) {
+    const fallback = new Date(now);
+    fallback.setSeconds(fallback.getSeconds() + 60);
+    return fallback;
+  }
+
+  while (next <= now) {
+    next.setTime(next.getTime() + stepMs);
+  }
+
+  return next;
+}
+
+export async function scheduleReminder(
+  title: string,
+  intervalH: number,
+  startHHMM?: string | null,
+  soundChoice: SoundChoice = 'default'
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+
+  console.log('📅 Scheduling', { title, intervalH, startHHMM, soundChoice });
+
+  const soundOption = SOUND_OPTIONS.find((s) => s.key === soundChoice);
+  const soundValue: boolean | string = soundOption?.file ?? true;
+
+  // More descriptive content: habit name in both title and body.
+  const content = {
+    title: `Moneo · ${title}`,
+    body: `“${title}” is due now. Tap to review or complete this micro-habit. 🌱`,
+    sound: soundValue,
+  };
+
+  try {
+    // Daily habits aligned to a fixed clock time.
+    if (intervalH === 24 && startHHMM) {
+      const [hour, minute] = startHHMM.split(':').map((v) => parseInt(v, 10));
+      const now = new Date();
+      const triggerTime = new Date();
+      triggerTime.setHours(hour, minute, 0, 0);
+      if (triggerTime <= now) triggerTime.setDate(triggerTime.getDate() + 1);
+
+      console.log('⏰ Daily habit scheduled for', triggerTime.toLocaleString());
+
+      return await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: triggerTime.getHours(),
+          minute: triggerTime.getMinutes(),
+          repeats: true,
+        },
+      });
+    }
+
+    // Other intervals aligned to the chosen grid.
+    const next = computeNextAlignedTime(intervalH, startHHMM ?? null);
+
+    console.log('⏳ Interval habit scheduled for', next.toLocaleString(), 'local time');
+
+    return await Notifications.scheduleNotificationAsync({
+      content,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+        hour: next.getHours(),
+        minute: next.getMinutes(),
+        repeats: true,
+      },
+    });
+  } catch (e) {
+    Alert.alert(
+      'Reminder Failed',
+      'Could not schedule the notification. The habit was saved but reminders may not fire.'
+    );
+    return null;
+  }
+}
+
+export async function cancelReminder(notificationId: string) {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch (_) {
+    // best effort
+  }
+}
+
+export async function cancelAllReminders() {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+}
+</file>
+
+<file path="utils/time.ts">
+export function pad2(x: number) {
+  return String(x).padStart(2, '0');
+}
+
+export function hoursToSeconds(h: number | string) {
+  const n = Number(h);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 3600) : 0;
+}
+
+export function dateToHHMM(d: Date) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+export function formatTimeDisplay(hhmm: string | null) {
+  if (!hhmm) return '--:--';
+  const [hourStr, minuteStr] = hhmm.split(':');
+  let hour = parseInt(hourStr, 10);
+  const minute = parseInt(minuteStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${pad2(minute)} ${ampm}`;
+}
+
+export function toDateString(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+</file>
+
+<file path=".gitignore">
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+</file>
+
+<file path="app/_layout.tsx">
+import { Stack } from 'expo-router';
+import { SubscriptionProvider } from '@/context/SubscriptionContext';
+
+export default function RootLayout() {
+  return (
+    <SubscriptionProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </SubscriptionProvider>
+  );
+}
+</file>
+
+<file path="app/index.tsx">
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  LayoutAnimation,
+  UIManager,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
+
+import type { Category, FilterCategory, Habit } from '@/types/habit';
+import {
+  SOUND_OPTIONS,
+  FILTER_OPTIONS,
+  CATEGORY_COLORS,
+  CATEGORY_BG_COLORS,
+} from '@/constants/habits';
+import { formatTimeDisplay, toDateString } from '@/utils/time';
+import { MonogramLogo } from '@/components/MonogramLogo';
+import { SegmentedTabs } from '@/components/SegmentedTabs';
+import { IntervalSelector } from '@/components/IntervalSelector';
+import { SoundPicker } from '@/components/SoundPicker';
+import { TimePickerModal } from '@/components/TimePickerModal';
+import { PaywallModal } from '@/components/PaywallModal';
+import { useHabits } from '@/hooks/useHabits';
+import { useHabitForm } from '@/hooks/useHabitForm';
+import { useSubscription } from '@/context/SubscriptionContext';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Notification handler
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+export default function Index() {
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('All');
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { isPro } = useSubscription();
+
+  const {
+    filteredHabits,
+    dashboardStats,
+    canCreateHabit,
+    createHabit,
+    updateHabit,
+    deleteHabit,
+    completeHabit,
+    habits,
+  } = useHabits(filterCategory);
+
+  const form = useHabitForm(habits, filterCategory);
+
+  // --- Inline renderers ---
+
+  const handleCreate = async () => {
+    const success = await createHabit(form.getFormData());
+    if (success) form.closeExpanded();
+  };
+
+  const handleUpdate = async (id: string) => {
+    const success = await updateHabit(id, form.getFormData());
+    if (success) form.closeExpanded();
+  };
+
+  const handleDelete = (id: string) => {
+    deleteHabit(id);
+    form.closeExpanded();
+  };
+
+  const handleStartAdd = () => {
+    if (!canCreateHabit) {
+      setShowPaywall(true);
+      return;
+    }
+    form.startAddHabit();
+  };
+
+  const renderDashboard = () => {
+    if (!dashboardStats) return null;
+    const { completedToday, totalHabits, weekRate, bestStreak, last7Days } = dashboardStats;
+    const allDone = completedToday === totalHabits;
+    const statColor = allDone ? '#16a34a' : completedToday > 0 ? '#d97706' : '#9ca3af';
+    return (
+      <View style={styles.dashboardSection}>
+        <View style={styles.statCardsRow}>
+          <View style={styles.statCard}>
+            <Text style={[styles.statValue, { color: statColor }]}>
+              {completedToday}/{totalHabits}
+            </Text>
+            <Text style={styles.statLabel}>Today</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{weekRate}%</Text>
+            <Text style={styles.statLabel}>This Week</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{bestStreak > 0 ? '\u{1F525} ' + bestStreak : '0'}</Text>
+            <Text style={styles.statLabel}>Best Streak</Text>
+          </View>
+        </View>
+        <View style={styles.weekRow}>
+          {last7Days.map((day) => (
+            <View key={day.date} style={styles.dayColumn}>
+              <View
+                style={[
+                  styles.dayDot,
+                  day.hasCompletion
+                    ? styles.dayDotFilled
+                    : day.isToday
+                    ? styles.dayDotToday
+                    : styles.dayDotEmpty,
+                ]}
+              />
+              <Text style={styles.dayLabel}>{day.dayLabel}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderTemplateRow = () => {
+    const templates = form.getTemplatesForCurrentCategory();
+    if (templates.length === 0) return null;
+
+    return (
+      <View style={styles.templatesSection}>
+        <Text style={styles.templatesLabel}>Quick templates</Text>
+        <View style={styles.templatesRow}>
+          {templates.map((tpl) => (
+            <TouchableOpacity
+              key={tpl.name}
+              style={styles.templatePill}
+              onPress={() => form.applyTemplate(tpl)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.templateEmoji}>{tpl.emoji}</Text>
+              <Text style={styles.templateText}>{tpl.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderEditForm = (mode: 'new' | 'edit', habitId?: string) => (
+    <View style={styles.editForm}>
+      {mode === 'new' && renderTemplateRow()}
+
+      <Text style={styles.editLabel}>Habit Name</Text>
+      <TextInput
+        style={styles.editInput}
+        placeholder="e.g. Drink Water"
+        value={form.editName}
+        onChangeText={form.setEditName}
+        returnKeyType="done"
+        autoFocus={mode === 'new'}
+      />
+
+      <Text style={styles.editLabel}>Category</Text>
+      <SegmentedTabs<Category> value={form.editCategory} onChange={form.setEditCategory} compact />
+
+      <Text style={[styles.editLabel, { marginTop: 12 }]}>Reminder Interval</Text>
+      <IntervalSelector value={form.editInterval} onChange={form.setEditInterval} />
+
+      <Text style={[styles.editLabel, { marginTop: 12 }]}>Notification Sound</Text>
+      <SoundPicker value={form.editSoundChoice} onChange={form.setEditSoundChoice} isPro={isPro} />
+
+      <View style={styles.editTimeRow}>
+        <Text style={styles.editLabel}>Start Time</Text>
+        <TouchableOpacity style={styles.editTimeButton} onPress={form.openTimePicker}>
+          <Text style={styles.clockIcon}>{'\u{1F552}'}</Text>
+          <Text style={styles.timeText}>{formatTimeDisplay(form.editStartTime)}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.editActions}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={mode === 'new' ? handleCreate : () => handleUpdate(habitId!)}
+        >
+          <Text style={styles.primaryButtonText}>
+            {mode === 'new' ? 'Create Habit' : 'Save Changes'}
+          </Text>
+        </TouchableOpacity>
+        {mode === 'edit' && (
+          <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(habitId!)}>
+            <Text style={styles.deleteButtonText}>Delete</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.cancelButton} onPress={form.cancelEdit}>
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderHabitCard = ({ item }: { item: Habit }) => {
+    const isExpanded = form.expandedHabitId === item.id;
+    const catColor = CATEGORY_COLORS[item.category];
+    const catBg = CATEGORY_BG_COLORS[item.category];
+    const today = toDateString(new Date());
+    const doneToday = item.completions.includes(today);
+
+    return (
+      <View style={[styles.card, { borderLeftColor: catColor }]}>
+        <View style={styles.cardRow}>
+          {doneToday ? (
+            <View style={styles.checkCircleDone}>
+              <Text style={styles.checkMark}>{'\u2713'}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => completeHabit(item.id)}
+              style={styles.checkCircle}
+            />
+          )}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => form.toggleExpand(item.id)}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.cardHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardName}>{item.name}</Text>
+                <View style={styles.cardMeta}>
+                  <View style={[styles.metaPill, { backgroundColor: catBg }]}>
+                    <Text style={[styles.metaPillText, { color: catColor }]}>{item.category}</Text>
+                  </View>
+                  <View style={styles.metaPillNeutral}>
+                    <Text style={styles.metaPillNeutralText}>every {item.intervalHours}h</Text>
+                  </View>
+                  <View style={styles.metaPillNeutral}>
+                    <Text style={styles.metaPillNeutralText}>
+                      {formatTimeDisplay(item.startTime)}
+                    </Text>
+                  </View>
+                  {item.soundChoice !== 'default' && (
+                    <View style={styles.metaPillNeutral}>
+                      <Text style={styles.metaPillNeutralText}>
+                        {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.icon}{' '}
+                        {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.label}
+                      </Text>
+                    </View>
+                  )}
+                  {item.streak > 0 && (
+                    <View style={styles.streakPill}>
+                      <Text style={styles.streakPillText}>{'\u{1F525}'} {item.streak}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <Text style={[styles.chevron, isExpanded && styles.chevronExpanded]}>
+                {'\u203A'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+        {isExpanded && renderEditForm('edit', item.id)}
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <MonogramLogo />
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Moneo</Text>
+            <Text style={styles.subtitle}>Micro-habit tracker</Text>
+          </View>
+        </View>
+
+        <SegmentedTabs<FilterCategory>
+          value={filterCategory}
+          onChange={(val) => {
+            setFilterCategory(val);
+            if (form.expandedHabitId && form.expandedHabitId !== 'new') {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              form.closeExpanded();
+            }
+          }}
+          options={FILTER_OPTIONS}
+        />
+
+        <Text style={styles.habitCount}>
+          {filteredHabits.length} habit{filteredHabits.length !== 1 ? 's' : ''}
+        </Text>
+
+        <FlatList
+          data={filteredHabits}
+          keyExtractor={(item) => item.id}
+          extraData={form.expandedHabitId}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <>
+              {renderDashboard()}
+              {form.expandedHabitId === 'new' ? (
+                <View style={[styles.card, styles.newCard]}>
+                  <Text style={styles.newCardTitle}>New Habit</Text>
+                  {renderEditForm('new')}
+                </View>
+              ) : null}
+            </>
+          }
+          renderItem={renderHabitCard}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>{'\u{1F331}'}</Text>
+              <Text style={styles.emptyTitle}>
+                {filterCategory === 'All' ? 'No habits yet' : `No ${filterCategory} habits`}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Tap the + button to create your first micro-habit
+              </Text>
+            </View>
+          }
+        />
+
+        {form.expandedHabitId !== 'new' && (
+          <TouchableOpacity style={styles.fab} onPress={handleStartAdd} activeOpacity={0.85}>
+            <Text style={styles.fabIcon}>+</Text>
+          </TouchableOpacity>
+        )}
+
+        <TimePickerModal
+          visible={form.showTimePickerModal}
+          tempTime={form.tempTime}
+          setTempTime={form.setTempTime}
+          onCancel={form.cancelTimePicker}
+          onConfirm={form.confirmTimePicker}
+        />
+
+        <PaywallModal
+          visible={showPaywall}
+          onDismiss={() => setShowPaywall(false)}
+          onPurchaseSuccess={() => {
+            setShowPaywall(false);
+            form.startAddHabit();
+          }}
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 0,
+    paddingBottom: 4,
+    paddingLeft: 4,
+  },
+  headerText: {
+    marginLeft: 10,
+    flex: 1,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  habitCount: {
+    fontSize: 13,
+    color: '#9ca3af',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  listContent: {
+    paddingBottom: 80,
+  },
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#d1d5db',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  newCard: {
+    borderLeftColor: '#16a34a',
+    marginBottom: 12,
+  },
+  newCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  cardMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  metaPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+  },
+  metaPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  metaPillNeutral: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: '#f3f4f6',
+  },
+  metaPillNeutralText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  streakPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: '#fff7ed',
+  },
+  streakPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ea580c',
+  },
+  chevron: {
+    fontSize: 22,
+    color: '#9ca3af',
+    marginLeft: 8,
+    fontWeight: '300',
+  },
+  chevronExpanded: {
+    transform: [{ rotate: '90deg' }],
+  },
+  editForm: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  editLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#fafafa',
+    marginBottom: 12,
+  },
+  editTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  editTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#fafafa',
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: '#16a34a',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  deleteButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: 60,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#16a34a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  fabIcon: {
+    fontSize: 28,
+    color: '#ffffff',
+    fontWeight: '300',
+    lineHeight: 30,
+  },
+  dashboardSection: {
+    marginBottom: 12,
+  },
+  statCardsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 6,
+  },
+  dayColumn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  dayDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  dayDotFilled: {
+    backgroundColor: '#16a34a',
+  },
+  dayDotEmpty: {
+    backgroundColor: '#d1d5db',
+  },
+  dayDotToday: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#16a34a',
+  },
+  dayLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#9ca3af',
+  },
+  checkCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    marginRight: 10,
+    alignSelf: 'center',
+  },
+  checkCircleDone: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#16a34a',
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
+  checkMark: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  clockIcon: {
+    fontSize: 18,
+    marginRight: 4,
+  },
+  timeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  templatesSection: {
+    marginBottom: 12,
+  },
+  templatesLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  templatesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  templatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#eef2ff',
+  },
+  templateEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  templateText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4338ca',
+  },
+});
+</file>
+
+<file path="app.json">
+{
+  "expo": {
+    "name": "moneo",
+    "slug": "moneo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "moneo",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.moneo.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.moneo.app"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/chime.wav",
+            "./assets/sounds/bell.wav",
+            "./assets/sounds/ping.wav",
+            "./assets/sounds/zen.wav"
+          ]
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "036eb4ec-3efd-426a-a527-0049784e0361"
+      }
+    }
+  }
+}
+</file>
+
+<file path="eslint.config.js">
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+</file>
+
+<file path="package.json">
+{
+  "name": "moneo",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
+    "@react-navigation/native": "^7.1.8",
+    "expo": "~54.0.33",
+    "expo-constants": "~18.0.9",
+    "expo-dev-client": "~6.0.20",
+    "expo-font": "~14.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-notifications": "~0.32.16",
+    "expo-router": "~6.0.23",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~6.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-purchases": "^9.10.4",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+</file>
+
+<file path="README.md">
+# Moneo
+
+Moneo is a cross-platform mobile application built with **Expo** and **React Native**, designed as a foundation for a modern, metrics-driven personal finance and monitoring experience.
+
+The project is structured as a clean, standalone Expo-managed app, suitable for rapid iteration, experimentation, and eventual production hardening.
+
+---
+
+## 🚀 Tech Stack
+
+- **Expo**
+- **React Native**
+- **TypeScript**
+- **Node.js**
+- **Metro Bundler**
+
+---
+
+## 📁 Project Structure
+
+```text
+moneo/
+├── app/                # App routes and screens
+├── assets/             # Static assets
+├── components/         # Reusable UI components
+├── hooks/              # Custom React hooks
+├── constants/          # Shared constants
+├── package.json
+├── app.json
+└── README.md
+🛠️ Getting Started
+Prerequisites
+Node.js (LTS recommended)
+
+npm or yarn
+
+Expo CLI (optional — npx works fine)
+
+Install dependencies
+npm install
+Start the development server
+npx expo start
+From there you can:
+
+Run on an iOS simulator
+
+Run on an Android emulator
+
+Scan the QR code with Expo Go on a physical device
+
+🧪 Development Notes
+This project uses an Expo-managed workflow
+
+Native folders (ios/, android/) are intentionally ignored
+
+Environment-specific files are excluded via .gitignore
+
+Dependencies are restored via npm install
+
+📌 Status
+This project is under active development and serves as:
+
+A working mobile application
+
+A foundation for future features
+
+A portfolio-quality example of a modern React Native app
+
+📄 License
+This project is currently unlicensed and intended for personal or internal use.
+
+
+---
+
+## Next steps (recommended)
+
+After adding the file:
+
+```bash
+git add README.md
+git commit -m "Add README"
+git push
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "app-example"
+  ]
+}
+</file>
+
+</files>

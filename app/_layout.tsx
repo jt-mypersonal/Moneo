@@ -1,5 +1,10 @@
-import { Stack } from "expo-router";
+import { Stack } from 'expo-router';
+import { SubscriptionProvider } from '@/context/SubscriptionContext';
 
 export default function RootLayout() {
-  return <Stack />;
+  return (
+    <SubscriptionProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </SubscriptionProvider>
+  );
 }
