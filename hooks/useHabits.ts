@@ -236,28 +236,24 @@ export function useHabits(filterCategory: FilterCategory) {
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
 
-    const entry = { timestamp: new Date().toISOString(), type };
+    const now = new Date();
+    const entry = { timestamp: now.toISOString(), type };
     const responses = [...habit.responses, entry];
 
-    if (type === 'complete') {
-      const today = toDateString(new Date());
-      if (!habit.completions.includes(today)) {
-        const completions = [...habit.completions, today];
-        const streak = calculateStreak(completions);
-        const bestStreak = Math.max(habit.bestStreak, streak);
-        const updated = habits.map((h) =>
-          h.id === habitId
-            ? { ...h, completions, streak, bestStreak, lastCompletedAt: new Date().toISOString(), responses }
-            : h
-        );
-        await saveHabits(updated);
-        return;
-      }
-    }
+    // Always log the response — each fire is independent.
+    // completions[] tracks which calendar days had at least one "complete" (for streaks).
+    const today = toDateString(now);
+    const completions = (type === 'complete' && !habit.completions.includes(today))
+      ? [...habit.completions, today]
+      : habit.completions;
+    const streak = calculateStreak(completions);
+    const bestStreak = Math.max(habit.bestStreak, streak);
+    const lastCompletedAt = type === 'complete' ? now.toISOString() : habit.lastCompletedAt;
 
-    // Incomplete, or already completed today — just log the response
     const updated = habits.map((h) =>
-      h.id === habitId ? { ...h, responses } : h
+      h.id === habitId
+        ? { ...h, responses, completions, streak, bestStreak, lastCompletedAt }
+        : h
     );
     await saveHabits(updated);
   }, [habits]);

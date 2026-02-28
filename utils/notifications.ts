@@ -21,7 +21,7 @@ export async function registerNotificationCategory() {
       },
       {
         identifier: 'incomplete',
-        buttonTitle: 'Incomplete',
+        buttonTitle: 'Skip',
         options: { opensAppToForeground: false },
       },
     ]);

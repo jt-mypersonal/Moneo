@@ -170,37 +170,33 @@ export default function Index() {
   const renderEditForm = (mode: 'new' | 'edit', habitId?: string) => {
     const habit = habitId ? habits.find((h) => h.id === habitId) : null;
     const today = toDateString(new Date());
-    const doneToday = habit?.completions.includes(today) ?? false;
 
-    const completedCount = habit?.responses.filter((r) => r.type === 'complete').length ?? 0;
-    const skippedCount = habit?.responses.filter((r) => r.type === 'incomplete').length ?? 0;
+    const todayResponses = habit?.responses.filter((r) =>
+      r.timestamp.startsWith(today)
+    ) ?? [];
+    const completedToday = todayResponses.filter((r) => r.type === 'complete').length;
+    const skippedToday = todayResponses.filter((r) => r.type === 'incomplete').length;
+
+    const completedAll = habit?.responses.filter((r) => r.type === 'complete').length ?? 0;
+    const skippedAll = habit?.responses.filter((r) => r.type === 'incomplete').length ?? 0;
 
     return (
     <View style={styles.editForm}>
-      {mode === 'edit' && !doneToday && (
-        <TouchableOpacity
-          style={styles.completeButton}
-          onPress={() => { recordResponse(habitId!, 'complete'); form.closeExpanded(); }}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.completeButtonText}>{'\u2713'}  Mark Complete</Text>
-        </TouchableOpacity>
-      )}
-      {mode === 'edit' && doneToday && (
-        <View style={styles.completedBanner}>
-          <Text style={styles.completedBannerText}>{'\u2713'}  Completed today</Text>
-        </View>
+      {mode === 'edit' && (completedToday > 0 || skippedToday > 0) && (
+        <Text style={styles.todaySummary}>
+          Today: {completedToday} completed{skippedToday > 0 ? `, ${skippedToday} skipped` : ''}
+        </Text>
       )}
 
-      {mode === 'edit' && (completedCount > 0 || skippedCount > 0) && (
+      {mode === 'edit' && (completedAll > 0 || skippedAll > 0) && (
         <View style={styles.responseStatsRow}>
           <View style={styles.responseStat}>
-            <Text style={styles.responseStatValue}>{completedCount}</Text>
+            <Text style={styles.responseStatValue}>{completedAll}</Text>
             <Text style={styles.responseStatLabel}>Completed</Text>
           </View>
           <View style={styles.responseStatDivider} />
           <View style={styles.responseStat}>
-            <Text style={[styles.responseStatValue, { color: '#d97706' }]}>{skippedCount}</Text>
+            <Text style={[styles.responseStatValue, { color: '#d97706' }]}>{skippedAll}</Text>
             <Text style={styles.responseStatLabel}>Skipped</Text>
           </View>
         </View>
@@ -267,7 +263,9 @@ export default function Index() {
     const catColor = CATEGORY_COLORS[item.category];
     const catBg = CATEGORY_BG_COLORS[item.category];
     const today = toDateString(new Date());
-    const doneToday = item.completions.includes(today);
+    const doneCount = item.responses.filter(
+      (r) => r.type === 'complete' && r.timestamp.startsWith(today)
+    ).length;
 
     return (
       <View style={[styles.card, { borderLeftColor: catColor }]}>
@@ -280,9 +278,9 @@ export default function Index() {
             <View style={{ flex: 1 }}>
               <View style={styles.cardNameRow}>
                 <Text style={styles.cardName}>{item.name}</Text>
-                {doneToday && (
+                {doneCount > 0 && (
                   <View style={styles.doneBadge}>
-                    <Text style={styles.doneBadgeText}>{'\u2713'} Done</Text>
+                    <Text style={styles.doneBadgeText}>{'\u2713'} {doneCount}x today</Text>
                   </View>
                 )}
               </View>
@@ -576,29 +574,12 @@ const styles = StyleSheet.create({
   chevronExpanded: {
     transform: [{ rotate: '90deg' }],
   },
-  completeButton: {
-    backgroundColor: '#16a34a',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  completeButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  completedBanner: {
-    backgroundColor: '#f0fdf4',
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  completedBannerText: {
-    color: '#16a34a',
-    fontSize: 14,
-    fontWeight: '600',
+  todaySummary: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 10,
   },
   responseStatsRow: {
     flexDirection: 'row',
