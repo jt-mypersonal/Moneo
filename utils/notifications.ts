@@ -1,12 +1,34 @@
 import { Platform, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { SOUND_OPTIONS } from '@/constants/habits';
-import { hoursToSeconds } from '@/utils/time';
-import type { SoundChoice } from '@/types/habit';
+import type { SoundChoice, SleepSchedule } from '@/types/habit';
+import { computeDailySlots } from './sleepSchedule';
+
+const CATEGORY_ID = 'habit-reminder';
 
 /**
- * Ensure we always work in local device time.
+ * Register notification category with Complete / Incomplete action buttons.
+ * Must be called once at startup before any notifications fire.
  */
+export async function registerNotificationCategory() {
+  if (Platform.OS === 'web') return;
+  try {
+    await Notifications.setNotificationCategoryAsync(CATEGORY_ID, [
+      {
+        identifier: 'complete',
+        buttonTitle: 'Complete',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: 'incomplete',
+        buttonTitle: 'Incomplete',
+        options: { opensAppToForeground: false },
+      },
+    ]);
+  } catch (e) {
+    console.warn('Failed to register notification category:', e);
+  }
+}
 
 export async function ensureNotificationPermissions() {
   if (Platform.OS === 'web') return;
@@ -37,115 +59,90 @@ export async function setupAndroidChannel() {
 }
 
 /**
- * Given interval + start time, compute the next aligned local Date AFTER now.
+ * Schedule reminders for a habit across all daily time slots.
+ *
+ * For sub-daily intervals (1h, 2h, 4h, 8h, 12h): schedules one repeating
+ * CALENDAR trigger per slot in the day, skipping sleep hours.
+ *
+ * For 24h: single repeating CALENDAR trigger at the start time.
+ *
+ * Returns array of notification IDs (one per slot).
  */
-function computeNextAlignedTime(
-  intervalH: number,
-  startHHMM: string | null | undefined
-): Date {
-  const now = new Date();
-
-  if (!startHHMM) {
-    const fallback = new Date(now);
-    fallback.setSeconds(fallback.getSeconds() + Math.max(5, hoursToSeconds(intervalH)));
-    return fallback;
-  }
-
-  const [startHour, startMinute] = startHHMM.split(':').map((v) => parseInt(v, 10));
-
-  const base = new Date(now);
-  base.setHours(startHour, startMinute, 0, 0);
-
-  if (base > now) {
-    return base;
-  }
-
-  const next = new Date(base);
-  const stepMs = intervalH * 60 * 60 * 1000;
-
-  if (!Number.isFinite(stepMs) || stepMs <= 0) {
-    const fallback = new Date(now);
-    fallback.setSeconds(fallback.getSeconds() + 60);
-    return fallback;
-  }
-
-  while (next <= now) {
-    next.setTime(next.getTime() + stepMs);
-  }
-
-  return next;
-}
-
 export async function scheduleReminder(
+  habitId: string,
   title: string,
   intervalH: number,
-  startHHMM?: string | null,
-  soundChoice: SoundChoice = 'default'
-): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+  startHHMM: string | null | undefined,
+  soundChoice: SoundChoice = 'default',
+  sleepSchedule: SleepSchedule = { enabled: false, startTime: '22:00', endTime: '07:00' }
+): Promise<string[]> {
+  if (Platform.OS === 'web') return [];
 
-  console.log('📅 Scheduling', { title, intervalH, startHHMM, soundChoice });
+  const effectiveStart = startHHMM ?? formatNowHHMM();
+
+  console.log('Scheduling', { title, intervalH, startHHMM: effectiveStart, soundChoice });
 
   const soundOption = SOUND_OPTIONS.find((s) => s.key === soundChoice);
   const soundValue: boolean | string = soundOption?.file ?? true;
 
-  // More descriptive content: habit name in both title and body.
-  const content = {
-    title: `Moneo · ${title}`,
-    body: `“${title}” is due now. Tap to review or complete this micro-habit. 🌱`,
+  const content: Notifications.NotificationContentInput = {
+    title: `Moneo - ${title}`,
+    body: `"${title}" is due now. How did it go?`,
     sound: soundValue,
+    categoryIdentifier: CATEGORY_ID,
+    data: { habitId },
   };
 
-  try {
-    // Daily habits aligned to a fixed clock time.
-    if (intervalH === 24 && startHHMM) {
-      const [hour, minute] = startHHMM.split(':').map((v) => parseInt(v, 10));
-      const now = new Date();
-      const triggerTime = new Date();
-      triggerTime.setHours(hour, minute, 0, 0);
-      if (triggerTime <= now) triggerTime.setDate(triggerTime.getDate() + 1);
+  const slots = computeDailySlots(intervalH, effectiveStart, sleepSchedule);
 
-      console.log('⏰ Daily habit scheduled for', triggerTime.toLocaleString());
+  if (slots.length === 0) {
+    console.warn('No notification slots — all times fall in sleep window');
+    return [];
+  }
 
-      return await Notifications.scheduleNotificationAsync({
+  const ids: string[] = [];
+
+  for (const slot of slots) {
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
         content,
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          hour: triggerTime.getHours(),
-          minute: triggerTime.getMinutes(),
+          hour: slot.hour,
+          minute: slot.minute,
           repeats: true,
         },
       });
+      ids.push(id);
+    } catch (e) {
+      console.warn('Failed to schedule slot', slot, e);
     }
+  }
 
-    // Other intervals aligned to the chosen grid.
-    const next = computeNextAlignedTime(intervalH, startHHMM ?? null);
-
-    console.log('⏳ Interval habit scheduled for', next.toLocaleString(), 'local time');
-
-    return await Notifications.scheduleNotificationAsync({
-      content,
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-        hour: next.getHours(),
-        minute: next.getMinutes(),
-        repeats: true,
-      },
-    });
-  } catch (e) {
+  if (ids.length === 0) {
     Alert.alert(
       'Reminder Failed',
-      'Could not schedule the notification. The habit was saved but reminders may not fire.'
+      'Could not schedule notifications. The habit was saved but reminders may not fire.'
     );
-    return null;
+  } else {
+    console.log(`Scheduled ${ids.length} notification(s) for "${title}"`);
   }
+
+  return ids;
 }
 
-export async function cancelReminder(notificationId: string) {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
-  } catch (_) {
-    // best effort
+function formatNowHHMM(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+export async function cancelReminders(notificationIds: string[]) {
+  for (const id of notificationIds) {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    } catch (_) {
+      // best effort
+    }
   }
 }
 

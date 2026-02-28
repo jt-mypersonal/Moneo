@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { Habit, FilterCategory } from '@/types/habit';
-import { FREE_HABIT_LIMIT } from '@/constants/habits';
+import type { Habit, FilterCategory, SleepSchedule, HabitResponseType } from '@/types/habit';
+import { FREE_HABIT_LIMIT, STORAGE_KEYS } from '@/constants/habits';
 import { toDateString } from '@/utils/time';
 import { calculateStreak, sanitizeHabitName } from '@/utils/habits';
 import {
   ensureNotificationPermissions,
   setupAndroidChannel,
+  registerNotificationCategory,
   scheduleReminder,
-  cancelReminder,
+  cancelReminders,
   cancelAllReminders,
 } from '@/utils/notifications';
+import { loadSleepSchedule, saveSleepSchedule, wouldBeFullyBlocked } from '@/utils/sleepSchedule';
 import { useSubscription } from '@/context/SubscriptionContext';
 
 export interface HabitFormData {
@@ -28,17 +30,16 @@ export interface DashboardStats {
   totalHabits: number;
   weekRate: number;
   bestStreak: number;
-  last7Days: {
-    date: string;
-    dayLabel: string;
-    hasCompletion: boolean;
-    isToday: boolean;
-  }[];
 }
 
 export function useHabits(filterCategory: FilterCategory) {
   const { isPro } = useSubscription();
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [sleepSchedule, setSleepScheduleState] = useState<SleepSchedule>({
+    enabled: false,
+    startTime: '22:00',
+    endTime: '07:00',
+  });
 
   const filteredHabits = useMemo(() => {
     if (filterCategory === 'All') return habits;
@@ -49,7 +50,7 @@ export function useHabits(filterCategory: FilterCategory) {
 
   const loadHabits = async (): Promise<Habit[]> => {
     try {
-      const stored = await AsyncStorage.getItem('habits');
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
       if (!stored) return [];
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
@@ -59,13 +60,16 @@ export function useHabits(filterCategory: FilterCategory) {
           bestStreak: h.bestStreak ?? h.streak ?? 0,
           lastCompletedAt: h.lastCompletedAt ?? null,
           soundChoice: h.soundChoice ?? 'default',
+          responses: h.responses ?? [],
+          // Migrate old single notificationId to notificationIds array
+          notificationIds: h.notificationIds ?? (h.notificationId ? [h.notificationId] : []),
         }));
         setHabits(hydrated);
         return hydrated;
       }
     } catch (e) {
       Alert.alert('Load Error', 'Your saved habits could not be read and were reset.');
-      await AsyncStorage.removeItem('habits');
+      await AsyncStorage.removeItem(STORAGE_KEYS.HABITS);
     }
     return [];
   };
@@ -73,7 +77,7 @@ export function useHabits(filterCategory: FilterCategory) {
   const saveHabits = async (updated: Habit[]) => {
     setHabits(updated);
     try {
-      await AsyncStorage.setItem('habits', JSON.stringify(updated));
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
     } catch (e) {
       Alert.alert('Save Failed', 'Your habits could not be saved. Changes may be lost if you close the app.');
     }
@@ -84,21 +88,44 @@ export function useHabits(filterCategory: FilterCategory) {
   useEffect(() => {
     (async () => {
       await cancelAllReminders();
-      const loaded = await loadHabits();
+      const [loaded, schedule] = await Promise.all([loadHabits(), loadSleepSchedule()]);
+      setSleepScheduleState(schedule);
       await ensureNotificationPermissions();
       await setupAndroidChannel();
+      await registerNotificationCategory();
 
       if (loaded.length > 0) {
         const rescheduled = await Promise.all(
           loaded.map(async (h) => {
-            const notifId = await scheduleReminder(h.name, h.intervalHours, h.startTime, h.soundChoice);
-            return { ...h, notificationId: notifId };
+            const ids = await scheduleReminder(
+              h.id, h.name, h.intervalHours, h.startTime, h.soundChoice, schedule
+            );
+            return { ...h, notificationIds: ids };
           })
         );
         await saveHabits(rescheduled);
       }
     })();
   }, []);
+
+  // --- Sleep schedule ---
+
+  const updateSleepSchedule = useCallback(async (schedule: SleepSchedule) => {
+    setSleepScheduleState(schedule);
+    await saveSleepSchedule(schedule);
+
+    // Reschedule all habits with new sleep window
+    await cancelAllReminders();
+    const rescheduled = await Promise.all(
+      habits.map(async (h) => {
+        const ids = await scheduleReminder(
+          h.id, h.name, h.intervalHours, h.startTime, h.soundChoice, schedule
+        );
+        return { ...h, notificationIds: ids };
+      })
+    );
+    await saveHabits(rescheduled);
+  }, [habits]);
 
   // --- CRUD ---
 
@@ -108,12 +135,25 @@ export function useHabits(filterCategory: FilterCategory) {
       Alert.alert('Missing Name', 'Please enter a habit name.');
       return false;
     }
-    const notifId = await scheduleReminder(cleaned, formData.intervalHours, formData.startTime, formData.soundChoice);
+
+    if ((formData.intervalHours === 12 || formData.intervalHours === 24) &&
+        wouldBeFullyBlocked(formData.intervalHours, formData.startTime, sleepSchedule)) {
+      Alert.alert(
+        'Sleep Conflict',
+        `This ${formData.intervalHours}h reminder would fire during your sleep schedule. Choose a different start time or interval.`
+      );
+      return false;
+    }
+
+    const ids = await scheduleReminder(
+      Date.now().toString(), cleaned, formData.intervalHours, formData.startTime,
+      formData.soundChoice, sleepSchedule
+    );
     const newHabit: Habit = {
       id: Date.now().toString(),
       name: cleaned,
       streak: 0,
-      notificationId: notifId,
+      notificationIds: ids,
       intervalHours: formData.intervalHours,
       startTime: formData.startTime,
       category: formData.category,
@@ -121,6 +161,7 @@ export function useHabits(filterCategory: FilterCategory) {
       completions: [],
       lastCompletedAt: null,
       soundChoice: formData.soundChoice,
+      responses: [],
     };
     await saveHabits([...habits, newHabit]);
     return true;
@@ -135,11 +176,21 @@ export function useHabits(filterCategory: FilterCategory) {
     const habit = habits.find((h) => h.id === id);
     if (!habit) return false;
 
-    if (habit.notificationId) {
-      await cancelReminder(habit.notificationId);
+    if ((formData.intervalHours === 12 || formData.intervalHours === 24) &&
+        wouldBeFullyBlocked(formData.intervalHours, formData.startTime, sleepSchedule)) {
+      Alert.alert(
+        'Sleep Conflict',
+        `This ${formData.intervalHours}h reminder would fire during your sleep schedule. Choose a different start time or interval.`
+      );
+      return false;
     }
 
-    const notifId = await scheduleReminder(cleaned, formData.intervalHours, formData.startTime, formData.soundChoice);
+    await cancelReminders(habit.notificationIds);
+
+    const ids = await scheduleReminder(
+      id, cleaned, formData.intervalHours, formData.startTime,
+      formData.soundChoice, sleepSchedule
+    );
     const updated = habits.map((h) =>
       h.id === id
         ? {
@@ -148,7 +199,7 @@ export function useHabits(filterCategory: FilterCategory) {
             intervalHours: formData.intervalHours,
             startTime: formData.startTime,
             category: formData.category,
-            notificationId: notifId,
+            notificationIds: ids,
             soundChoice: formData.soundChoice,
           }
         : h
@@ -170,9 +221,7 @@ export function useHabits(filterCategory: FilterCategory) {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            if (habit.notificationId) {
-              await cancelReminder(habit.notificationId);
-            }
+            await cancelReminders(habit.notificationIds);
             const updated = habits.filter((h) => h.id !== id);
             await saveHabits(updated);
           },
@@ -181,20 +230,37 @@ export function useHabits(filterCategory: FilterCategory) {
     );
   };
 
-  const completeHabit = async (id: string) => {
-    const today = toDateString(new Date());
-    const habit = habits.find((h) => h.id === id);
-    if (!habit || habit.completions.includes(today)) return;
-    const completions = [...habit.completions, today];
-    const streak = calculateStreak(completions);
-    const bestStreak = Math.max(habit.bestStreak, streak);
+  // --- Response handling (from notification actions) ---
+
+  const recordResponse = useCallback(async (habitId: string, type: HabitResponseType) => {
+    const habit = habits.find((h) => h.id === habitId);
+    if (!habit) return;
+
+    const entry = { timestamp: new Date().toISOString(), type };
+    const responses = [...habit.responses, entry];
+
+    if (type === 'complete') {
+      const today = toDateString(new Date());
+      if (!habit.completions.includes(today)) {
+        const completions = [...habit.completions, today];
+        const streak = calculateStreak(completions);
+        const bestStreak = Math.max(habit.bestStreak, streak);
+        const updated = habits.map((h) =>
+          h.id === habitId
+            ? { ...h, completions, streak, bestStreak, lastCompletedAt: new Date().toISOString(), responses }
+            : h
+        );
+        await saveHabits(updated);
+        return;
+      }
+    }
+
+    // Incomplete, or already completed today — just log the response
     const updated = habits.map((h) =>
-      h.id === id
-        ? { ...h, completions, streak, bestStreak, lastCompletedAt: new Date().toISOString() }
-        : h
+      h.id === habitId ? { ...h, responses } : h
     );
     await saveHabits(updated);
-  };
+  }, [habits]);
 
   // --- Dashboard stats ---
 
@@ -220,20 +286,7 @@ export function useHabits(filterCategory: FilterCategory) {
 
     const bestStreak = Math.max(0, ...habits.map((h) => h.bestStreak));
 
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(now);
-      d.setDate(d.getDate() - (6 - i));
-      const ds = toDateString(d);
-      const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-      return {
-        date: ds,
-        dayLabel: dayLabels[d.getDay()],
-        hasCompletion: habits.some((h) => h.completions.includes(ds)),
-        isToday: ds === today,
-      };
-    });
-
-    return { completedToday, totalHabits, weekRate, bestStreak, last7Days };
+    return { completedToday, totalHabits, weekRate, bestStreak };
   }, [habits]);
 
   const canCreateHabit = isPro || habits.length < FREE_HABIT_LIMIT;
@@ -246,6 +299,8 @@ export function useHabits(filterCategory: FilterCategory) {
     createHabit,
     updateHabit,
     deleteHabit,
-    completeHabit,
+    recordResponse,
+    sleepSchedule,
+    updateSleepSchedule,
   };
 }

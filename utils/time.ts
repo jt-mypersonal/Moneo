@@ -2,11 +2,6 @@ export function pad2(x: number) {
   return String(x).padStart(2, '0');
 }
 
-export function hoursToSeconds(h: number | string) {
-  const n = Number(h);
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 3600) : 0;
-}
-
 export function dateToHHMM(d: Date) {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }

@@ -32,3 +32,14 @@ export const TEMPLATES: Record<Category, { emoji: string; name: string; interval
 };
 
 export const FREE_HABIT_LIMIT = 3;
+
+export const STORAGE_KEYS = {
+  HABITS: 'habits',
+  SLEEP_SCHEDULE: 'sleepSchedule',
+} as const;
+
+export const DEFAULT_SLEEP_SCHEDULE = {
+  enabled: false,
+  startTime: '22:00',
+  endTime: '07:00',
+} as const;

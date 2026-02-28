@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { SOUND_OPTIONS } from '@/constants/habits';
 import type { SoundChoice } from '@/types/habit';
 
@@ -7,9 +7,21 @@ interface SoundPickerProps {
   value: SoundChoice;
   onChange: (choice: SoundChoice) => void;
   isPro?: boolean;
+  onUpgradeRequest?: () => void;
 }
 
-export function SoundPicker({ value, onChange, isPro = true }: SoundPickerProps) {
+export function SoundPicker({ value, onChange, isPro = true, onUpgradeRequest }: SoundPickerProps) {
+  const handleLockedPress = () => {
+    if (onUpgradeRequest) {
+      onUpgradeRequest();
+    } else {
+      Alert.alert(
+        'Pro Feature',
+        'Custom notification sounds are available with Moneo Pro.',
+      );
+    }
+  };
+
   return (
     <View style={styles.intervalRow}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.intervalBar}>
@@ -19,8 +31,8 @@ export function SoundPicker({ value, onChange, isPro = true }: SoundPickerProps)
           return (
             <TouchableOpacity
               key={opt.key}
-              onPress={() => { if (!locked) onChange(opt.key); }}
-              activeOpacity={locked ? 1 : 0.9}
+              onPress={() => { locked ? handleLockedPress() : onChange(opt.key); }}
+              activeOpacity={locked ? 0.7 : 0.9}
               style={[
                 styles.soundPill,
                 selected ? styles.intervalPillSelected : styles.intervalPillUnselected,

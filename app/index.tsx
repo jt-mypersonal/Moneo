@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ import { IntervalSelector } from '@/components/IntervalSelector';
 import { SoundPicker } from '@/components/SoundPicker';
 import { TimePickerModal } from '@/components/TimePickerModal';
 import { PaywallModal } from '@/components/PaywallModal';
+import { SleepScheduleModal } from '@/components/SleepScheduleModal';
 import { useHabits } from '@/hooks/useHabits';
 import { useHabitForm } from '@/hooks/useHabitForm';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -50,6 +51,7 @@ Notifications.setNotificationHandler({
 export default function Index() {
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('All');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showSleepSchedule, setShowSleepSchedule] = useState(false);
   const { isPro } = useSubscription();
 
   const {
@@ -59,11 +61,35 @@ export default function Index() {
     createHabit,
     updateHabit,
     deleteHabit,
-    completeHabit,
+    recordResponse,
+    sleepSchedule,
+    updateSleepSchedule,
     habits,
   } = useHabits(filterCategory);
 
   const form = useHabitForm(habits, filterCategory);
+
+  // --- Notification response listener ---
+  const responseListener = useRef<Notifications.Subscription | null>(null);
+
+  useEffect(() => {
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const habitId = response.notification.request.content.data?.habitId as string | undefined;
+      if (!habitId) return;
+
+      const actionId = response.actionIdentifier;
+      if (actionId === 'complete') {
+        recordResponse(habitId, 'complete');
+      } else if (actionId === 'incomplete') {
+        recordResponse(habitId, 'incomplete');
+      }
+      // Default tap (no action button) — just opens the app, no auto-logging
+    });
+
+    return () => {
+      responseListener.current?.remove();
+    };
+  }, [recordResponse]);
 
   // --- Inline renderers ---
 
@@ -92,7 +118,7 @@ export default function Index() {
 
   const renderDashboard = () => {
     if (!dashboardStats) return null;
-    const { completedToday, totalHabits, weekRate, bestStreak, last7Days } = dashboardStats;
+    const { completedToday, totalHabits, weekRate, bestStreak } = dashboardStats;
     const allDone = completedToday === totalHabits;
     const statColor = allDone ? '#16a34a' : completedToday > 0 ? '#d97706' : '#9ca3af';
     return (
@@ -112,23 +138,6 @@ export default function Index() {
             <Text style={styles.statValue}>{bestStreak > 0 ? '\u{1F525} ' + bestStreak : '0'}</Text>
             <Text style={styles.statLabel}>Best Streak</Text>
           </View>
-        </View>
-        <View style={styles.weekRow}>
-          {last7Days.map((day) => (
-            <View key={day.date} style={styles.dayColumn}>
-              <View
-                style={[
-                  styles.dayDot,
-                  day.hasCompletion
-                    ? styles.dayDotFilled
-                    : day.isToday
-                    ? styles.dayDotToday
-                    : styles.dayDotEmpty,
-                ]}
-              />
-              <Text style={styles.dayLabel}>{day.dayLabel}</Text>
-            </View>
-          ))}
         </View>
       </View>
     );
@@ -158,8 +167,45 @@ export default function Index() {
     );
   };
 
-  const renderEditForm = (mode: 'new' | 'edit', habitId?: string) => (
+  const renderEditForm = (mode: 'new' | 'edit', habitId?: string) => {
+    const habit = habitId ? habits.find((h) => h.id === habitId) : null;
+    const today = toDateString(new Date());
+    const doneToday = habit?.completions.includes(today) ?? false;
+
+    const completedCount = habit?.responses.filter((r) => r.type === 'complete').length ?? 0;
+    const skippedCount = habit?.responses.filter((r) => r.type === 'incomplete').length ?? 0;
+
+    return (
     <View style={styles.editForm}>
+      {mode === 'edit' && !doneToday && (
+        <TouchableOpacity
+          style={styles.completeButton}
+          onPress={() => { recordResponse(habitId!, 'complete'); form.closeExpanded(); }}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.completeButtonText}>{'\u2713'}  Mark Complete</Text>
+        </TouchableOpacity>
+      )}
+      {mode === 'edit' && doneToday && (
+        <View style={styles.completedBanner}>
+          <Text style={styles.completedBannerText}>{'\u2713'}  Completed today</Text>
+        </View>
+      )}
+
+      {mode === 'edit' && (completedCount > 0 || skippedCount > 0) && (
+        <View style={styles.responseStatsRow}>
+          <View style={styles.responseStat}>
+            <Text style={styles.responseStatValue}>{completedCount}</Text>
+            <Text style={styles.responseStatLabel}>Completed</Text>
+          </View>
+          <View style={styles.responseStatDivider} />
+          <View style={styles.responseStat}>
+            <Text style={[styles.responseStatValue, { color: '#d97706' }]}>{skippedCount}</Text>
+            <Text style={styles.responseStatLabel}>Skipped</Text>
+          </View>
+        </View>
+      )}
+
       {mode === 'new' && renderTemplateRow()}
 
       <Text style={styles.editLabel}>Habit Name</Text>
@@ -179,7 +225,12 @@ export default function Index() {
       <IntervalSelector value={form.editInterval} onChange={form.setEditInterval} />
 
       <Text style={[styles.editLabel, { marginTop: 12 }]}>Notification Sound</Text>
-      <SoundPicker value={form.editSoundChoice} onChange={form.setEditSoundChoice} isPro={isPro} />
+      <SoundPicker
+        value={form.editSoundChoice}
+        onChange={form.setEditSoundChoice}
+        isPro={isPro}
+        onUpgradeRequest={() => setShowPaywall(true)}
+      />
 
       <View style={styles.editTimeRow}>
         <Text style={styles.editLabel}>Start Time</Text>
@@ -208,7 +259,8 @@ export default function Index() {
         </TouchableOpacity>
       </View>
     </View>
-  );
+    );
+  };
 
   const renderHabitCard = ({ item }: { item: Habit }) => {
     const isExpanded = form.expandedHabitId === item.id;
@@ -219,59 +271,53 @@ export default function Index() {
 
     return (
       <View style={[styles.card, { borderLeftColor: catColor }]}>
-        <View style={styles.cardRow}>
-          {doneToday ? (
-            <View style={styles.checkCircleDone}>
-              <Text style={styles.checkMark}>{'\u2713'}</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => completeHabit(item.id)}
-              style={styles.checkCircle}
-            />
-          )}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => form.toggleExpand(item.id)}
-            style={{ flex: 1 }}
-          >
-            <View style={styles.cardHeader}>
-              <View style={{ flex: 1 }}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => form.toggleExpand(item.id)}
+          style={styles.cardRow}
+        >
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1 }}>
+              <View style={styles.cardNameRow}>
                 <Text style={styles.cardName}>{item.name}</Text>
-                <View style={styles.cardMeta}>
-                  <View style={[styles.metaPill, { backgroundColor: catBg }]}>
-                    <Text style={[styles.metaPillText, { color: catColor }]}>{item.category}</Text>
+                {doneToday && (
+                  <View style={styles.doneBadge}>
+                    <Text style={styles.doneBadgeText}>{'\u2713'} Done</Text>
                   </View>
-                  <View style={styles.metaPillNeutral}>
-                    <Text style={styles.metaPillNeutralText}>every {item.intervalHours}h</Text>
-                  </View>
+                )}
+              </View>
+              <View style={styles.cardMeta}>
+                <View style={[styles.metaPill, { backgroundColor: catBg }]}>
+                  <Text style={[styles.metaPillText, { color: catColor }]}>{item.category}</Text>
+                </View>
+                <View style={styles.metaPillNeutral}>
+                  <Text style={styles.metaPillNeutralText}>every {item.intervalHours}h</Text>
+                </View>
+                <View style={styles.metaPillNeutral}>
+                  <Text style={styles.metaPillNeutralText}>
+                    {formatTimeDisplay(item.startTime)}
+                  </Text>
+                </View>
+                {item.soundChoice !== 'default' && (
                   <View style={styles.metaPillNeutral}>
                     <Text style={styles.metaPillNeutralText}>
-                      {formatTimeDisplay(item.startTime)}
+                      {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.icon}{' '}
+                      {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.label}
                     </Text>
                   </View>
-                  {item.soundChoice !== 'default' && (
-                    <View style={styles.metaPillNeutral}>
-                      <Text style={styles.metaPillNeutralText}>
-                        {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.icon}{' '}
-                        {SOUND_OPTIONS.find((s) => s.key === item.soundChoice)?.label}
-                      </Text>
-                    </View>
-                  )}
-                  {item.streak > 0 && (
-                    <View style={styles.streakPill}>
-                      <Text style={styles.streakPillText}>{'\u{1F525}'} {item.streak}</Text>
-                    </View>
-                  )}
-                </View>
+                )}
+                {item.streak > 0 && (
+                  <View style={styles.streakPill}>
+                    <Text style={styles.streakPillText}>{'\u{1F525}'} {item.streak}</Text>
+                  </View>
+                )}
               </View>
-              <Text style={[styles.chevron, isExpanded && styles.chevronExpanded]}>
-                {'\u203A'}
-              </Text>
             </View>
-          </TouchableOpacity>
-        </View>
+            <Text style={[styles.chevron, isExpanded && styles.chevronExpanded]}>
+              {'\u203A'}
+            </Text>
+          </View>
+        </TouchableOpacity>
         {isExpanded && renderEditForm('edit', item.id)}
       </View>
     );
@@ -286,6 +332,13 @@ export default function Index() {
             <Text style={styles.title}>Moneo</Text>
             <Text style={styles.subtitle}>Micro-habit tracker</Text>
           </View>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => setShowSleepSchedule(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.settingsIcon}>{'\u{1F319}'}</Text>
+          </TouchableOpacity>
         </View>
 
         <SegmentedTabs<FilterCategory>
@@ -357,6 +410,16 @@ export default function Index() {
             form.startAddHabit();
           }}
         />
+
+        <SleepScheduleModal
+          visible={showSleepSchedule}
+          schedule={sleepSchedule}
+          onSave={(s) => {
+            updateSleepSchedule(s);
+            setShowSleepSchedule(false);
+          }}
+          onDismiss={() => setShowSleepSchedule(false)}
+        />
       </View>
     </SafeAreaView>
   );
@@ -394,6 +457,17 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 8,
   },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsIcon: {
+    fontSize: 20,
+  },
   habitCount: {
     fontSize: 13,
     color: '#9ca3af',
@@ -426,15 +500,36 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 12,
   },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  cardNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
   },
   cardName: {
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 6,
+  },
+  doneBadge: {
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 99,
+  },
+  doneBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#16a34a',
   },
   cardMeta: {
     flexDirection: 'row',
@@ -480,6 +575,58 @@ const styles = StyleSheet.create({
   },
   chevronExpanded: {
     transform: [{ rotate: '90deg' }],
+  },
+  completeButton: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  completeButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  completedBanner: {
+    backgroundColor: '#f0fdf4',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  completedBannerText: {
+    color: '#16a34a',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  responseStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  responseStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  responseStatValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#16a34a',
+  },
+  responseStatLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  responseStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#e5e7eb',
   },
   editForm: {
     marginTop: 14,
@@ -636,65 +783,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-  },
-  weekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 6,
-  },
-  dayColumn: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  dayDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  dayDotFilled: {
-    backgroundColor: '#16a34a',
-  },
-  dayDotEmpty: {
-    backgroundColor: '#d1d5db',
-  },
-  dayDotToday: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#16a34a',
-  },
-  dayLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#9ca3af',
-  },
-  checkCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    marginRight: 10,
-    alignSelf: 'center',
-  },
-  checkCircleDone: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#16a34a',
-    marginRight: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-  },
-  checkMark: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 16,
-  },
-  cardRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
   },
   clockIcon: {
     fontSize: 18,
