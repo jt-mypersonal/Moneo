@@ -6,6 +6,38 @@ import { computeDailySlots } from './sleepSchedule';
 
 const CATEGORY_ID = 'habit-reminder';
 
+/** Minutes after each main notification to fire nag reminders. */
+const NAG_OFFSETS_MINUTES = [2, 4];
+
+/** Suppress window: nags are suppressed if user responded within this many ms. */
+const SUPPRESS_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+// --- Foreground nag suppression ---
+
+const respondedHabits = new Map<string, number>();
+
+/**
+ * Mark a habit as recently responded so foreground nags are suppressed.
+ */
+export function markHabitResponded(habitId: string) {
+  respondedHabits.set(habitId, Date.now());
+}
+
+/**
+ * Check if a habit was responded to within the suppression window.
+ * Used by the notification handler to silently suppress nag notifications
+ * when the user already recorded a response.
+ */
+export function isHabitRecentlyResponded(habitId: string): boolean {
+  const respondedAt = respondedHabits.get(habitId);
+  if (!respondedAt) return false;
+  if (Date.now() - respondedAt > SUPPRESS_WINDOW_MS) {
+    respondedHabits.delete(habitId);
+    return false;
+  }
+  return true;
+}
+
 /**
  * Register notification category with Complete / Incomplete action buttons.
  * Must be called once at startup before any notifications fire.
@@ -58,6 +90,23 @@ export async function setupAndroidChannel() {
   }
 }
 
+// --- Helpers ---
+
+function addMinutes(hour: number, minute: number, add: number): { hour: number; minute: number } {
+  const total = hour * 60 + minute + add;
+  return {
+    hour: Math.floor(total / 60) % 24,
+    minute: total % 60,
+  };
+}
+
+function formatNowHHMM(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+// --- Scheduling ---
+
 /**
  * Schedule reminders for a habit across all daily time slots.
  *
@@ -66,7 +115,11 @@ export async function setupAndroidChannel() {
  *
  * For 24h: single repeating CALENDAR trigger at the start time.
  *
- * Returns array of notification IDs (one per slot).
+ * Also schedules follow-up nag notifications at +2 and +4 minutes per slot
+ * so the phone re-alerts until the user interacts.
+ *
+ * Returns main IDs and nag IDs separately so nags can be canceled on response
+ * without losing the main repeating reminders.
  */
 export async function scheduleReminder(
   habitId: string,
@@ -75,8 +128,8 @@ export async function scheduleReminder(
   startHHMM: string | null | undefined,
   soundChoice: SoundChoice = 'default',
   sleepSchedule: SleepSchedule = { enabled: false, startTime: '22:00', endTime: '07:00' }
-): Promise<string[]> {
-  if (Platform.OS === 'web') return [];
+): Promise<{ mainIds: string[]; nagIds: string[] }> {
+  if (Platform.OS === 'web') return { mainIds: [], nagIds: [] };
 
   const effectiveStart = startHHMM ?? formatNowHHMM();
 
@@ -85,27 +138,37 @@ export async function scheduleReminder(
   const soundOption = SOUND_OPTIONS.find((s) => s.key === soundChoice);
   const soundValue: boolean | string = soundOption?.file ?? true;
 
-  const content: Notifications.NotificationContentInput = {
+  const mainContent: Notifications.NotificationContentInput = {
     title: `Moneo - ${title}`,
-    body: `"${title}" is due now. How did it go?`,
+    body: `"${title}" is due now. Long-press for options.`,
     sound: soundValue,
     categoryIdentifier: CATEGORY_ID,
     data: { habitId },
+  };
+
+  const nagContent: Notifications.NotificationContentInput = {
+    title: `Moneo - ${title}`,
+    body: `Reminder: "${title}" — still waiting!`,
+    sound: soundValue,
+    categoryIdentifier: CATEGORY_ID,
+    data: { habitId, isNag: true },
   };
 
   const slots = computeDailySlots(intervalH, effectiveStart, sleepSchedule);
 
   if (slots.length === 0) {
     console.warn('No notification slots — all times fall in sleep window');
-    return [];
+    return { mainIds: [], nagIds: [] };
   }
 
-  const ids: string[] = [];
+  const mainIds: string[] = [];
+  const nagIds: string[] = [];
 
+  // First pass: schedule all main notifications (priority — survive iOS 64 limit)
   for (const slot of slots) {
     try {
       const id = await Notifications.scheduleNotificationAsync({
-        content,
+        content: mainContent,
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: slot.hour,
@@ -113,28 +176,46 @@ export async function scheduleReminder(
           repeats: true,
         },
       });
-      ids.push(id);
+      mainIds.push(id);
     } catch (e) {
-      console.warn('Failed to schedule slot', slot, e);
+      console.warn('Failed to schedule main slot', slot, e);
     }
   }
 
-  if (ids.length === 0) {
+  // Second pass: schedule nag notifications (+2min, +4min per slot)
+  for (const slot of slots) {
+    for (const offsetMin of NAG_OFFSETS_MINUTES) {
+      const nag = addMinutes(slot.hour, slot.minute, offsetMin);
+      try {
+        const id = await Notifications.scheduleNotificationAsync({
+          content: nagContent,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            hour: nag.hour,
+            minute: nag.minute,
+            repeats: true,
+          },
+        });
+        nagIds.push(id);
+      } catch (e) {
+        console.warn('Failed to schedule nag', nag, e);
+      }
+    }
+  }
+
+  if (mainIds.length === 0) {
     Alert.alert(
       'Reminder Failed',
       'Could not schedule notifications. The habit was saved but reminders may not fire.'
     );
   } else {
-    console.log(`Scheduled ${ids.length} notification(s) for "${title}"`);
+    console.log(`Scheduled ${mainIds.length} main + ${nagIds.length} nag notification(s) for "${title}"`);
   }
 
-  return ids;
+  return { mainIds, nagIds };
 }
 
-function formatNowHHMM(): string {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-}
+// --- Cancellation ---
 
 export async function cancelReminders(notificationIds: string[]) {
   for (const id of notificationIds) {

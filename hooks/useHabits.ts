@@ -13,6 +13,7 @@ import {
   scheduleReminder,
   cancelReminders,
   cancelAllReminders,
+  markHabitResponded,
 } from '@/utils/notifications';
 import { loadSleepSchedule, saveSleepSchedule, wouldBeFullyBlocked } from '@/utils/sleepSchedule';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -63,6 +64,7 @@ export function useHabits(filterCategory: FilterCategory) {
           responses: h.responses ?? [],
           // Migrate old single notificationId to notificationIds array
           notificationIds: h.notificationIds ?? (h.notificationId ? [h.notificationId] : []),
+          nagNotificationIds: h.nagNotificationIds ?? [],
         }));
         setHabits(hydrated);
         return hydrated;
@@ -97,10 +99,10 @@ export function useHabits(filterCategory: FilterCategory) {
       if (loaded.length > 0) {
         const rescheduled = await Promise.all(
           loaded.map(async (h) => {
-            const ids = await scheduleReminder(
+            const { mainIds, nagIds } = await scheduleReminder(
               h.id, h.name, h.intervalHours, h.startTime, h.soundChoice, schedule
             );
-            return { ...h, notificationIds: ids };
+            return { ...h, notificationIds: mainIds, nagNotificationIds: nagIds };
           })
         );
         await saveHabits(rescheduled);
@@ -118,10 +120,10 @@ export function useHabits(filterCategory: FilterCategory) {
     await cancelAllReminders();
     const rescheduled = await Promise.all(
       habits.map(async (h) => {
-        const ids = await scheduleReminder(
+        const { mainIds, nagIds } = await scheduleReminder(
           h.id, h.name, h.intervalHours, h.startTime, h.soundChoice, schedule
         );
-        return { ...h, notificationIds: ids };
+        return { ...h, notificationIds: mainIds, nagNotificationIds: nagIds };
       })
     );
     await saveHabits(rescheduled);
@@ -145,7 +147,7 @@ export function useHabits(filterCategory: FilterCategory) {
       return false;
     }
 
-    const ids = await scheduleReminder(
+    const { mainIds, nagIds } = await scheduleReminder(
       Date.now().toString(), cleaned, formData.intervalHours, formData.startTime,
       formData.soundChoice, sleepSchedule
     );
@@ -153,7 +155,8 @@ export function useHabits(filterCategory: FilterCategory) {
       id: Date.now().toString(),
       name: cleaned,
       streak: 0,
-      notificationIds: ids,
+      notificationIds: mainIds,
+      nagNotificationIds: nagIds,
       intervalHours: formData.intervalHours,
       startTime: formData.startTime,
       category: formData.category,
@@ -185,9 +188,9 @@ export function useHabits(filterCategory: FilterCategory) {
       return false;
     }
 
-    await cancelReminders(habit.notificationIds);
+    await cancelReminders([...habit.notificationIds, ...habit.nagNotificationIds]);
 
-    const ids = await scheduleReminder(
+    const { mainIds, nagIds } = await scheduleReminder(
       id, cleaned, formData.intervalHours, formData.startTime,
       formData.soundChoice, sleepSchedule
     );
@@ -199,7 +202,8 @@ export function useHabits(filterCategory: FilterCategory) {
             intervalHours: formData.intervalHours,
             startTime: formData.startTime,
             category: formData.category,
-            notificationIds: ids,
+            notificationIds: mainIds,
+            nagNotificationIds: nagIds,
             soundChoice: formData.soundChoice,
           }
         : h
@@ -221,7 +225,7 @@ export function useHabits(filterCategory: FilterCategory) {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await cancelReminders(habit.notificationIds);
+            await cancelReminders([...habit.notificationIds, ...habit.nagNotificationIds]);
             const updated = habits.filter((h) => h.id !== id);
             await saveHabits(updated);
           },
@@ -230,11 +234,19 @@ export function useHabits(filterCategory: FilterCategory) {
     );
   };
 
-  // --- Response handling (from notification actions) ---
+  // --- Response handling (from notification actions or in-app modal) ---
 
   const recordResponse = useCallback(async (habitId: string, type: HabitResponseType) => {
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
+
+    // Cancel pending nag notifications so the phone stops re-alerting.
+    // Main notifications are kept — they continue firing on schedule.
+    // Nags are rescheduled on next app startup (cancelAll + reschedule in lifecycle).
+    markHabitResponded(habitId);
+    if (habit.nagNotificationIds.length > 0) {
+      await cancelReminders(habit.nagNotificationIds);
+    }
 
     const now = new Date();
     const entry = { timestamp: now.toISOString(), type };
@@ -252,7 +264,7 @@ export function useHabits(filterCategory: FilterCategory) {
 
     const updated = habits.map((h) =>
       h.id === habitId
-        ? { ...h, responses, completions, streak, bestStreak, lastCompletedAt }
+        ? { ...h, responses, completions, streak, bestStreak, lastCompletedAt, nagNotificationIds: [] }
         : h
     );
     await saveHabits(updated);

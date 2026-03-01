@@ -8,6 +8,7 @@ export interface Habit {
   name: string;
   streak: number;
   notificationIds: string[];
+  nagNotificationIds: string[];
   intervalHours: number;
   startTime: string | null;
   category: Category;

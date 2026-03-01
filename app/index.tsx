@@ -21,6 +21,7 @@ import {
   CATEGORY_BG_COLORS,
 } from '@/constants/habits';
 import { formatTimeDisplay, toDateString } from '@/utils/time';
+import { markHabitResponded, isHabitRecentlyResponded } from '@/utils/notifications';
 import { MonogramLogo } from '@/components/MonogramLogo';
 import { SegmentedTabs } from '@/components/SegmentedTabs';
 import { IntervalSelector } from '@/components/IntervalSelector';
@@ -28,6 +29,7 @@ import { SoundPicker } from '@/components/SoundPicker';
 import { TimePickerModal } from '@/components/TimePickerModal';
 import { PaywallModal } from '@/components/PaywallModal';
 import { SleepScheduleModal } from '@/components/SleepScheduleModal';
+import { HabitResponseModal } from '@/components/HabitResponseModal';
 import { useHabits } from '@/hooks/useHabits';
 import { useHabitForm } from '@/hooks/useHabitForm';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -37,21 +39,38 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// Notification handler
+// Notification handler — suppresses nag notifications if user already responded
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data;
+    const habitId = data?.habitId as string | undefined;
+    const isNag = data?.isNag as boolean | undefined;
+
+    if (isNag && habitId && isHabitRecentlyResponded(habitId)) {
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+      };
+    }
+
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 export default function Index() {
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('All');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showSleepSchedule, setShowSleepSchedule] = useState(false);
+  const [pendingResponse, setPendingResponse] = useState<{ habitId: string; habitName: string } | null>(null);
   const { isPro } = useSubscription();
 
   const {
@@ -79,17 +98,25 @@ export default function Index() {
 
       const actionId = response.actionIdentifier;
       if (actionId === 'complete') {
+        markHabitResponded(habitId);
         recordResponse(habitId, 'complete');
       } else if (actionId === 'incomplete') {
+        markHabitResponded(habitId);
         recordResponse(habitId, 'incomplete');
+      } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+        // User tapped the notification without long-pressing for actions —
+        // show an in-app prompt so they can still record a response.
+        const habit = habits.find((h) => h.id === habitId);
+        if (habit) {
+          setPendingResponse({ habitId, habitName: habit.name });
+        }
       }
-      // Default tap (no action button) — just opens the app, no auto-logging
     });
 
     return () => {
       responseListener.current?.remove();
     };
-  }, [recordResponse]);
+  }, [recordResponse, habits]);
 
   // --- Inline renderers ---
 
@@ -417,6 +444,26 @@ export default function Index() {
             setShowSleepSchedule(false);
           }}
           onDismiss={() => setShowSleepSchedule(false)}
+        />
+
+        <HabitResponseModal
+          visible={pendingResponse !== null}
+          habitName={pendingResponse?.habitName ?? ''}
+          onComplete={() => {
+            if (pendingResponse) {
+              markHabitResponded(pendingResponse.habitId);
+              recordResponse(pendingResponse.habitId, 'complete');
+            }
+            setPendingResponse(null);
+          }}
+          onSkip={() => {
+            if (pendingResponse) {
+              markHabitResponded(pendingResponse.habitId);
+              recordResponse(pendingResponse.habitId, 'incomplete');
+            }
+            setPendingResponse(null);
+          }}
+          onDismiss={() => setPendingResponse(null)}
         />
       </View>
     </SafeAreaView>
