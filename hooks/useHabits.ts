@@ -240,6 +240,23 @@ export function useHabits(filterCategory: FilterCategory) {
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
 
+    // Deduplicate: if user already responded within the nag window (6 min),
+    // this is a duplicate from a nag notification — skip it.
+    const now = new Date();
+    const NAG_WINDOW_MS = 6 * 60 * 1000;
+    const recentDupe = habit.responses.some((r) =>
+      now.getTime() - new Date(r.timestamp).getTime() < NAG_WINDOW_MS
+    );
+    if (recentDupe) {
+      // Still cancel nags and mark responded so the phone stops alerting,
+      // but don't record a second response for this firing window.
+      markHabitResponded(habitId);
+      if (habit.nagNotificationIds.length > 0) {
+        await cancelReminders(habit.nagNotificationIds);
+      }
+      return;
+    }
+
     // Cancel pending nag notifications so the phone stops re-alerting.
     // Main notifications are kept — they continue firing on schedule.
     // Nags are rescheduled on next app startup (cancelAll + reschedule in lifecycle).
@@ -248,11 +265,9 @@ export function useHabits(filterCategory: FilterCategory) {
       await cancelReminders(habit.nagNotificationIds);
     }
 
-    const now = new Date();
     const entry = { timestamp: now.toISOString(), type };
     const responses = [...habit.responses, entry];
 
-    // Always log the response — each fire is independent.
     // completions[] tracks which calendar days had at least one "complete" (for streaks).
     const today = toDateString(now);
     const completions = (type === 'complete' && !habit.completions.includes(today))
