@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -88,35 +88,45 @@ export default function Index() {
 
   const form = useHabitForm(habits, filterCategory);
 
-  // --- Notification response listener ---
+  // --- Notification response handling ---
+
+  const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse) => {
+    const habitId = response.notification.request.content.data?.habitId as string | undefined;
+    if (!habitId) return;
+
+    const actionId = response.actionIdentifier;
+    if (actionId === 'complete') {
+      markHabitResponded(habitId);
+      recordResponse(habitId, 'complete');
+    } else if (actionId === 'incomplete') {
+      markHabitResponded(habitId);
+      recordResponse(habitId, 'incomplete');
+    } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      // User tapped the notification without long-pressing for actions —
+      // show an in-app prompt so they can still record a response.
+      // Extract habit name from notification title (not state — avoids stale closure on cold start).
+      const title = response.notification.request.content.title ?? '';
+      const habitName = title.replace('Moneo - ', '');
+      setPendingResponse({ habitId, habitName });
+    }
+  }, [recordResponse]);
+
+  // Listener for when app is already running
   const responseListener = useRef<Notifications.Subscription | null>(null);
-
   useEffect(() => {
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const habitId = response.notification.request.content.data?.habitId as string | undefined;
-      if (!habitId) return;
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    return () => { responseListener.current?.remove(); };
+  }, [handleNotificationResponse]);
 
-      const actionId = response.actionIdentifier;
-      if (actionId === 'complete') {
-        markHabitResponded(habitId);
-        recordResponse(habitId, 'complete');
-      } else if (actionId === 'incomplete') {
-        markHabitResponded(habitId);
-        recordResponse(habitId, 'incomplete');
-      } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
-        // User tapped the notification without long-pressing for actions —
-        // show an in-app prompt so they can still record a response.
-        const habit = habits.find((h) => h.id === habitId);
-        if (habit) {
-          setPendingResponse({ habitId, habitName: habit.name });
-        }
-      }
+  // Cold-start: app was opened by tapping a notification
+  const coldStartHandled = useRef(false);
+  useEffect(() => {
+    if (coldStartHandled.current) return;
+    coldStartHandled.current = true;
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) handleNotificationResponse(response);
     });
-
-    return () => {
-      responseListener.current?.remove();
-    };
-  }, [recordResponse, habits]);
+  }, [handleNotificationResponse]);
 
   // --- Inline renderers ---
 
