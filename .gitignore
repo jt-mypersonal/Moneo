@@ -41,3 +41,17 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Repomix artifacts
+repomix-output*.xml
+
+# Claude local config
+.claude/
+
+# Old or temporary assets
+*_old.*
+icon_old.png
+
+# Optional local build artifacts
+build/
+coverage/
