@@ -6,8 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useSubscription } from '@/context/SubscriptionContext';
+
+const TERMS_URL = 'https://jt-mypersonal.github.io/Moneo/terms.html';
+const PRIVACY_URL = 'https://jt-mypersonal.github.io/Moneo/privacy.html';
 
 interface PaywallModalProps {
   visible: boolean;
@@ -75,6 +79,22 @@ export function PaywallModal({ visible, onDismiss, onPurchaseSuccess }: PaywallM
               <Text style={styles.restoreButtonText}>Restore Purchases</Text>
             )}
           </TouchableOpacity>
+
+          <View style={styles.legalRow}>
+            <Text
+              style={styles.legalLink}
+              onPress={() => Linking.openURL(TERMS_URL)}
+            >
+              Terms of Service
+            </Text>
+            <Text style={styles.legalSeparator}>|</Text>
+            <Text
+              style={styles.legalLink}
+              onPress={() => Linking.openURL(PRIVACY_URL)}
+            >
+              Privacy Policy
+            </Text>
+          </View>
 
           <TouchableOpacity
             style={styles.dismissButton}
@@ -151,6 +171,21 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 14,
     fontWeight: '500',
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  legalLink: {
+    color: '#9ca3af',
+    fontSize: 12,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    color: '#d1d5db',
+    fontSize: 12,
+    marginHorizontal: 8,
   },
   dismissButton: {
     paddingVertical: 8,
