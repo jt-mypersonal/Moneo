@@ -24,7 +24,7 @@ export function PaywallModal({ visible, onDismiss, onPurchaseSuccess }: PaywallM
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
-  const priceLabel = currentOffering?.availablePackages[0]?.product.priceString ?? 'Loading...';
+  const priceLabel = currentOffering?.availablePackages[0]?.product.priceString ?? '$4.99 / year';
 
   const handlePurchase = async () => {
     setPurchasing(true);
