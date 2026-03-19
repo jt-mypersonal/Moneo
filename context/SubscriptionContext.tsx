@@ -43,7 +43,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       try {
         const mod = await import('react-native-purchases');
         const RC = mod.default;
-        setPurchases(RC);
+        setPurchases(() => RC);
 
         RC.configure({ apiKey: RC_API_KEY });
 
