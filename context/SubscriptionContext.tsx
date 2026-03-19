@@ -88,6 +88,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       return entitled;
     } catch (e: any) {
       if (e.userCancelled) return false;
+      // Purchase may have succeeded despite the error (common in sandbox).
+      // Check entitlement before surfacing a failure.
+      try {
+        const customerInfo = await Purchases.getCustomerInfo();
+        const entitled = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+        if (entitled) {
+          setIsPro(true);
+          return true;
+        }
+      } catch {
+        // ignore — fall through to failure alert
+      }
       Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
       return false;
     }
